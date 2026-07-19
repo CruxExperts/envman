@@ -109,6 +109,44 @@ class ReleaseProtocolTests(unittest.TestCase):
             with self.assertRaises(release.ReleaseProtocolError):
                 release.update(check_only=True, transport=lambda url, limit: older if url == "https://fixture.test/manifest" else transport(url, limit), state_root=state)
 
+    def test_install_uses_verified_assets_and_exact_uv_argv(self) -> None:
+        encoded, bodies = manifest_bytes()
+        manifest = release.parse_manifest(encoded, manifest_url="https://fixture.test/manifest")
+        calls: list[list[str]] = []
+
+        def runner(argv: list[str]) -> str:
+            calls.append(argv)
+            if argv == ["uv", "--version"]:
+                return "uv 0.11.21"
+            if argv == ["uv", "tool", "list"]:
+                return ""
+            if argv == ["envman", "--version"]:
+                return "envman 0.1.0"
+            return ""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            receipt = release.install_manifest(
+                manifest,
+                transport=lambda url, _limit: bodies[url],
+                runner=runner,
+                state_root=Path(temporary) / "state",
+            )
+            self.assertEqual(receipt.installed_version, "0.1.0")
+            install = next(call for call in calls if call[:3] == ["uv", "tool", "install"])
+            self.assertEqual(install[:8], ["uv", "tool", "install", "--python", "3.12", "--force", "--no-build", "--constraints"])
+
+    def test_install_refuses_unowned_existing_tool(self) -> None:
+        encoded, bodies = manifest_bytes()
+        manifest = release.parse_manifest(encoded)
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(release.ReleaseProtocolError):
+                release.install_manifest(
+                    manifest,
+                    transport=lambda url, _limit: bodies[url],
+                    runner=lambda argv: "uv 0.11.21" if argv == ["uv", "--version"] else "envman 0.1.0",
+                    state_root=Path(temporary) / "state",
+                )
+
     def test_generated_installer_contains_exact_protocol_and_pep723_metadata(self) -> None:
         installer = render()
         protocol = (Path(__file__).parents[1] / "src" / "envman" / "_release_protocol.py").read_text(encoding="utf-8")
