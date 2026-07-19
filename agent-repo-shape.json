@@ -45,11 +45,10 @@
   "repo_skills": [],
   "sanitization": {
     "forbidden_path_prefixes": [
-      "/home/cptnfren"
+      "${HOME}"
     ],
     "forbidden_values": [
-      "/home/cptnfren",
-      "$HOME"
+      "${HOME}"
     ],
     "public_artifacts_require_check": true
   },
