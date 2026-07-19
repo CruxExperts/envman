@@ -1,0 +1,14 @@
+documents:
+  - id: docs-reference-agent-repo-shape
+    path: docs/reference/agent-repo-shape.md
+    title: Agent Repo Shape
+    category_label: reference
+    category_slug: reference
+    status: ACTIVE
+    doc_type: policy
+    tags:
+      - agents
+      - codex
+      - opencode
+      - skills
+      - repo-shape

@@ -1,0 +1,14 @@
+.localsetup/
+.codex/skills/
+.codex/runs/
+.codex/sessions/
+.codex/logs/
+.codex/tmp/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+logs/
+state/

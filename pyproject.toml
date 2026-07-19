@@ -1,0 +1,9 @@
+[project]
+name = "envman"
+version = "0.1.0"
+description = "Portable terminal environment-variable manager"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

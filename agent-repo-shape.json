@@ -1,0 +1,58 @@
+{
+  "agent_clients": [
+    "codex",
+    "omp",
+    "opencode",
+    "cursor"
+  ],
+  "external_skills": [],
+  "generated_at": "2026-07-19T12:08:05+00:00",
+  "platform_overrides": {
+    "codex": {
+      "config": "",
+      "enabled": true
+    },
+    "cursor": {
+      "config": "",
+      "enabled": true
+    },
+    "omp": {
+      "config": "",
+      "enabled": true
+    },
+    "opencode": {
+      "config": "",
+      "enabled": true
+    }
+  },
+  "profile": "lean-universal",
+  "repo": {
+    "audience": "Repository maintainers and agent collaborators",
+    "automation": "manual",
+    "commands": {
+      "build": "uv build --no-build-isolation",
+      "deploy": "Release through the tag-gated GitHub Actions workflow",
+      "test": "uv run --locked --no-sync python -m unittest discover -s tests -p 'test_*.py'"
+    },
+    "docs_depth": "reference",
+    "name": "envman",
+    "package_manager": "uv",
+    "purpose": "Portable terminal environment-variable manager",
+    "safety": "standard",
+    "stack": "python"
+  },
+  "repo_profile": "universal-agent-repo",
+  "repo_skills": [],
+  "sanitization": {
+    "forbidden_path_prefixes": [
+      "/home/cptnfren"
+    ],
+    "forbidden_values": [
+      "/home/cptnfren",
+      "$HOME"
+    ],
+    "public_artifacts_require_check": true
+  },
+  "schema_version": "1",
+  "shared_skill_surface": ".agents/skills"
+}
