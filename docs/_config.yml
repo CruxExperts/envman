@@ -1,0 +1,10 @@
+title: Envman
+url: https://cruxexperts.github.io
+baseurl: /envman
+description: Portable terminal environment-variable manager
+markdown: kramdown
+kramdown:
+  input: GFM
+exclude:
+  - INDEX.md
+  - index.yaml

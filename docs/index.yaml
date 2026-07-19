@@ -1,14 +1,81 @@
 documents:
-  - id: docs-reference-agent-repo-shape
-    path: docs/reference/agent-repo-shape.md
-    title: Agent Repo Shape
-    category_label: reference
+  - id: getting-started-installation
+    path: docs/getting-started/installation.md
+    title: Install Envman
+    category_label: Getting started
+    category_slug: getting-started
+    status: ACTIVE
+    doc_type: how_to
+    tags: [installation, uv, updates]
+  - id: guide-tui
+    path: docs/guides/tui.md
+    title: Terminal UI
+    category_label: Guides
+    category_slug: guides
+    status: ACTIVE
+    doc_type: guide
+    tags: [tui, curses]
+  - id: guide-cli
+    path: docs/guides/cli.md
+    title: CLI reference
+    category_label: Guides
+    category_slug: guides
+    status: ACTIVE
+    doc_type: reference
+    tags: [cli, automation, json]
+  - id: guide-backups
+    path: docs/guides/backups-and-migration.md
+    title: Encrypted backups and migration
+    category_label: Guides
+    category_slug: guides
+    status: ACTIVE
+    doc_type: guide
+    tags: [backups, encryption, migration]
+  - id: reference-storage
+    path: docs/reference/storage-and-shell-loading.md
+    title: Storage and shell loading
+    category_label: Reference
     category_slug: reference
     status: ACTIVE
-    doc_type: policy
-    tags:
-      - agents
-      - codex
-      - opencode
-      - skills
-      - repo-shape
+    doc_type: reference
+    tags: [storage, shells]
+  - id: reference-install
+    path: docs/reference/install-source-and-updates.md
+    title: Installation sources and updates
+    category_label: Reference
+    category_slug: reference
+    status: ACTIVE
+    doc_type: reference
+    tags: [release, installer, updates]
+  - id: development-architecture
+    path: docs/development/architecture.md
+    title: Architecture
+    category_label: Development
+    category_slug: development
+    status: ACTIVE
+    doc_type: reference
+    tags: [architecture, package]
+  - id: development-testing
+    path: docs/development/testing.md
+    title: Testing
+    category_label: Development
+    category_slug: development
+    status: ACTIVE
+    doc_type: how_to
+    tags: [testing, unittest]
+  - id: development-versioning
+    path: docs/development/versioning-and-releases.md
+    title: Versioning and releases
+    category_label: Development
+    category_slug: development
+    status: ACTIVE
+    doc_type: reference
+    tags: [versioning, releases]
+  - id: governance-publishing
+    path: docs/governance/publishing-checklist.md
+    title: Publishing checklist
+    category_label: Governance
+    category_slug: governance
+    status: ACTIVE
+    doc_type: checklist
+    tags: [publishing, github]
