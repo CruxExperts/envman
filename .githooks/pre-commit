@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+uv run --locked --no-sync python scripts/version.py check
+uv run --locked --no-sync python scripts/render_installer.py
+if ! git diff --quiet -- install.py; then
+  printf '%s\n' 'pre-commit: install.py is stale; rerun scripts/render_installer.py and stage it' >&2
+  exit 1
+fi

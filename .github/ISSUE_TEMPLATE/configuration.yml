@@ -1,0 +1,11 @@
+name: Configuration question
+description: Ask about installation, shell loading, backups, or updates
+title: "config: "
+labels: [question]
+body:
+  - type: textarea
+    attributes:
+      label: Goal and current configuration
+      description: Provide sanitized configuration and commands. Do not include environment values, backup keys, or credentials.
+    validations:
+      required: true

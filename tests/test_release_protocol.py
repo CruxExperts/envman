@@ -113,12 +113,17 @@ class ReleaseProtocolTests(unittest.TestCase):
         encoded, bodies = manifest_bytes()
         manifest = release.parse_manifest(encoded, manifest_url="https://fixture.test/manifest")
         calls: list[list[str]] = []
+        installed = False
 
         def runner(argv: list[str]) -> str:
+            nonlocal installed
             calls.append(argv)
             if argv == ["uv", "--version"]:
                 return "uv 0.11.21"
             if argv == ["uv", "tool", "list"]:
+                return "envman 0.1.0" if installed else ""
+            if argv[:3] == ["uv", "tool", "install"]:
+                installed = True
                 return ""
             if argv == ["envman", "--version"]:
                 return "envman 0.1.0"
@@ -146,6 +151,26 @@ class ReleaseProtocolTests(unittest.TestCase):
                     runner=lambda argv: "uv 0.11.21" if argv == ["uv", "--version"] else "envman 0.1.0",
                     state_root=Path(temporary) / "state",
                 )
+
+    def test_metadata_mismatch_removes_initial_install_without_receipt(self) -> None:
+        encoded, bodies = manifest_bytes()
+        manifest = release.parse_manifest(encoded)
+        calls: list[list[str]] = []
+
+        def runner(argv: list[str]) -> str:
+            calls.append(argv)
+            if argv == ["uv", "--version"]:
+                return "uv 0.11.21"
+            if argv == ["uv", "tool", "list"]:
+                return ""
+            return ""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary) / "state"
+            with self.assertRaises(release.ReleaseProtocolError):
+                release.install_manifest(manifest, transport=lambda url, _limit: bodies[url], runner=runner, state_root=state)
+            self.assertFalse(release.receipt_path(state).exists())
+            self.assertIn(["uv", "tool", "uninstall", "envman"], calls)
 
     def test_generated_installer_contains_exact_protocol_and_pep723_metadata(self) -> None:
         installer = render()

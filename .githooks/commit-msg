@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+message_file=$1
+subject=$(sed -n '1p' "$message_file")
+if ! printf '%s\n' "$subject" | grep -Eq '^[a-z]+(\([^)]+\))?!?: .+'; then
+  printf '%s\n' 'commit-msg: expected Conventional Commit subject' >&2
+  exit 1
+fi
+if { printf '%s\n' "$subject" | grep -q '!:' || grep -q '^BREAKING CHANGE:\|^BREAKING-CHANGE:' "$message_file"; } && ! grep -Eiq '^Release-Type: (major|minor|patch|none)$' "$message_file"; then
+  printf '%s\n' 'commit-msg: breaking intent requires Release-Type: major|minor|patch|none' >&2
+  exit 1
+fi

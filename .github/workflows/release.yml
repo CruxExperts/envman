@@ -1,0 +1,75 @@
+name: Release
+on:
+  push:
+    tags: ["v[0-9]*"]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          version-file: pyproject.toml
+      - name: Verify release source
+        run: |
+          test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          uv sync --locked --group dev
+          uv run --locked --no-sync python -m unittest discover -s tests -p 'test_*.py'
+          uv run --locked --no-sync python scripts/version.py check
+          uv run --locked --no-sync python scripts/check_docs.py
+          uv run --locked --no-sync python scripts/render_installer.py
+          git diff --exit-code -- install.py
+      - name: Build reproducibly
+        run: |
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$GITHUB_SHA")"
+          uv build --no-build-isolation --out-dir /tmp/release-a
+          uv build --no-build-isolation --out-dir /tmp/release-b
+          cmp /tmp/release-a/envman-*.whl /tmp/release-b/envman-*.whl
+          cmp /tmp/release-a/envman-*.tar.gz /tmp/release-b/envman-*.tar.gz
+          mkdir release
+          cp /tmp/release-a/* release/
+          cp install.py release/
+          uv run --locked --no-sync python scripts/release_assets.py --output release --version "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-assets
+          path: release
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-assets
+          path: release
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk '/^## \['"${GITHUB_REF_NAME#v}"'\]/{capture=1; next} capture && /^## /{exit} capture{print}' CHANGELOG.md > /tmp/release-notes.md
+          test -s /tmp/release-notes.md
+          gh release create "$GITHUB_REF_NAME" release/* --draft --title "$GITHUB_REF_NAME" --notes-file /tmp/release-notes.md
+      - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: release/*
+      - name: Publish immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false

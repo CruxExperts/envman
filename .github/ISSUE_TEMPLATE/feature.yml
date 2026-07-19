@@ -1,0 +1,15 @@
+name: Feature request
+description: Propose an observable Envman improvement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: Problem and proposed outcome
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: true

@@ -1,0 +1,22 @@
+name: Bug report
+description: Report a reproducible Envman defect
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: Include sanitized steps, expected behavior, and actual behavior. Never include variable values or credentials.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Envman version
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment
+      description: Linux distribution, Python version, uv version, and sanitized command output.
+    validations:
+      required: true

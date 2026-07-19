@@ -381,6 +381,17 @@ def _tool_present(*, runner: Runner, uv_executable: str) -> bool:
     return any(line.split(maxsplit=1)[0].lower().replace("_", "-") == PRODUCT for line in listing.splitlines() if line.strip())
 
 
+def _verify_distribution_metadata(version: str, *, runner: Runner, uv_executable: str) -> None:
+    """Require uv's installed-tool metadata to agree before publishing a receipt."""
+    try:
+        listing = runner([uv_executable, "tool", "list"])
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ReleaseProtocolError("Installed Envman metadata could not be verified.") from exc
+    expected = re.compile(rf"^{PRODUCT}\s+(?:v)?{re.escape(version)}(?:\s|$)", re.IGNORECASE)
+    if not any(expected.search(line) for line in listing.splitlines()):
+        raise ReleaseProtocolError("Installed Envman metadata does not match the release manifest.")
+
+
 def _install_argv(wheel: Path, constraints: Path, *, uv_executable: str = "uv") -> list[str]:
     return [uv_executable, "tool", "install", "--python", "3.12", "--force", "--no-build", "--constraints", str(constraints), str(wheel)]
 
@@ -425,6 +436,7 @@ def install_manifest(manifest: ReleaseManifest, *, transport: Transport = defaul
             prior_constraints_path = _write_artifact(root, "previous-" + previous.constraints.filename, prior_constraints)
         try:
             runner(_install_argv(wheel_path, constraints_path, uv_executable=uv_executable))
+            _verify_distribution_metadata(manifest.version, runner=runner, uv_executable=uv_executable)
             _verify_command(manifest.version, runner=runner, executable=command_executable)
             result = _receipt(manifest, uv_version, now)
             write_receipt(result, receipt_file)

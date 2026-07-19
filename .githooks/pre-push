@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+if [ -n "$(git status --porcelain)" ]; then
+  printf '%s\n' 'pre-push: worktree must be clean' >&2
+  exit 1
+fi
+plan=$(uv run --locked --no-sync python scripts/version.py plan)
+target=$(printf '%s' "$plan" | sed -n 's/.*"target": "\([^"]*\)".*/\1/p')
+current=$(cat VERSION)
+if [ "$target" = "$current" ]; then
+  exit 0
+fi
+printf '%s\n' "$target" > VERSION
+uv run --locked --no-sync python scripts/version.py sync
+uv lock
+unexpected=$(git status --porcelain | awk '{print $2}' | grep -Ev '^(VERSION|README\.md|uv\.lock)$' || true)
+if [ -n "$unexpected" ]; then
+  printf '%s\n' "pre-push: version sync changed unexpected path(s): $unexpected" >&2
+  git restore --worktree VERSION README.md uv.lock
+  exit 1
+fi
+git add VERSION README.md uv.lock
+git commit -m "chore: sync release version $target"
+printf '%s\n' "pre-push: created version-sync commit; review and push again." >&2
+exit 1
