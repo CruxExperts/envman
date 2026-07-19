@@ -82,8 +82,11 @@ def plan() -> dict[str, object]:
         intents.append(explicit.group(1).lower() if explicit else "patch")
     order = {"none": 0, "patch": 1, "minor": 2, "major": 3}
     bump = max(intents or ["none"], key=order.__getitem__)
-    major, minor, patch = (int(part) for part in current.split("."))
-    target = current if bump == "none" else f"{major + 1}.0.0" if bump == "major" else f"{major}.{minor + 1}.0" if bump == "minor" else f"{major}.{minor}.{patch + 1}"
+    base = tag.removeprefix("v")
+    if SEMVER.fullmatch(base) is None:
+        raise ValueError("latest release tag must use strict vMAJOR.MINOR.PATCH SemVer")
+    major, minor, patch = (int(part) for part in base.split("."))
+    target = base if bump == "none" else f"{major + 1}.0.0" if bump == "major" else f"{major}.{minor + 1}.0" if bump == "minor" else f"{major}.{minor}.{patch + 1}"
     return {"current": current, "target": target, "bump": bump, "raw_bump": bump, "warnings": warnings, "tag": tag}
 
 
