@@ -37,7 +37,7 @@ CONSTRAINTS_LIMIT = 1 * 1024 * 1024
 WHEEL_LIMIT = 20 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 30
 LATEST_MANIFEST_URL = "https://github.com/CruxExperts/envman/releases/latest/download/release-manifest.json"
-INSTALLER_VERSION = "0.1.0"
+INSTALLER_VERSION = "0.1.1"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UV_VERSION = re.compile(r"\buv\s+(\d+)\.(\d+)\.(\d+)\b", re.IGNORECASE)
@@ -159,18 +159,22 @@ def parse_manifest(raw: bytes, *, manifest_url: str = LATEST_MANIFEST_URL) -> Re
     return ReleaseManifest(version_value, manifest_url, wheel, constraints, python_spec, platform_spec, uv_spec)
 
 
-def _redirect_host(url: str) -> str:
+def _redirect_host(url: str, *, initial: bool = False) -> str:
     parsed = urlsplit(url)
-    if parsed.scheme != "https" or parsed.username or parsed.password or parsed.fragment or parsed.query:
-        raise ReleaseProtocolError("Release URL must be a plain HTTPS URL without credentials, query, or fragment.")
+    if parsed.scheme != "https" or parsed.username or parsed.password or parsed.fragment:
+        raise ReleaseProtocolError("Release URL must be HTTPS without credentials or a fragment.")
     if parsed.hostname not in {"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"}:
         raise ReleaseProtocolError("Release download host is not trusted.")
+    if initial and (parsed.hostname != "github.com" or parsed.query):
+        raise ReleaseProtocolError("Release source URL must be a plain GitHub HTTPS URL.")
+    if parsed.query and parsed.hostname not in {"objects.githubusercontent.com", "release-assets.githubusercontent.com"}:
+        raise ReleaseProtocolError("Only signed GitHub release-asset redirects may include query parameters.")
     return parsed.hostname
 
 
 def default_transport(url: str, limit: int) -> bytes:
     """Download one bounded asset while accepting only GitHub-controlled redirects."""
-    _redirect_host(url)
+    _redirect_host(url, initial=True)
 
     class GuardedRedirect(HTTPRedirectHandler):
         def redirect_request(self, request: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Request | None:

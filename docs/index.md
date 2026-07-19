@@ -10,7 +10,7 @@ description: A terminal UI and scriptable CLI for durable environment variables 
     <h1 id="hero-title">Your environment variables are scattered. Envman makes them portable.</h1>
     <p>Keep per-user variables in one durable file, work through a terminal UI or a scriptable CLI, and move them between machines with encrypted backups.</p>
     <div class="actions" aria-label="Primary actions">
-      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.0</a>
+      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.1</a>
       <a class="button secondary" href="{{ '/guides/cli' | relative_url }}">CLI reference</a>
       <a class="button secondary" href="https://github.com/CruxExperts/envman">GitHub</a>
     </div>

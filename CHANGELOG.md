@@ -2,6 +2,12 @@
 
 All notable changes are documented here.
 
+## [0.1.1] - 2026-07-19
+
+### Fixed
+
+- Permit GitHub's signed release-asset redirects while preserving the trusted source and redirect-host boundary.
+
 ## [0.1.0] - 2026-07-19
 
 ### Added

@@ -1,6 +1,6 @@
 # Envman
 
-**Version:** 0.1.0
+**Version:** 0.1.1
 
 Envman is a portable terminal environment-variable manager for Linux. One variable is easy; dozens of credentials, URLs, paths, and settings across shells and machines become hard to find, validate, and move without leaks. Envman keeps the managed set durable, visible, and portable.
 

@@ -5,7 +5,7 @@ title: Install Envman
 
 # Install Envman
 
-Envman 0.1.0 supports Linux x86_64 with CPython 3.12 and `uv >=0.11,<0.12`.
+Envman 0.1.1 supports Linux x86_64 with CPython 3.12 and `uv >=0.11,<0.12`.
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py

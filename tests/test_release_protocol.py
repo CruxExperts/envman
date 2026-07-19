@@ -59,7 +59,19 @@ class ReleaseProtocolTests(unittest.TestCase):
     def test_installed_package_version_comes_from_distribution_metadata(self) -> None:
         from envman import cli
 
-        self.assertEqual(cli.app_version(), "0.1.0")
+        self.assertEqual(cli.app_version(), "0.1.1")
+
+    def test_redirect_validation_allows_only_signed_asset_redirect_queries(self) -> None:
+        release._redirect_host("https://github.com/CruxExperts/envman/releases/latest/download/release-manifest.json", initial=True)
+        release._redirect_host("https://release-assets.githubusercontent.com/asset?signature=expected")
+        release._redirect_host("https://objects.githubusercontent.com/asset?signature=expected")
+        for candidate in (
+            "https://github.com/CruxExperts/envman/releases/latest/download/release-manifest.json?query=unexpected",
+            "https://github.com/CruxExperts/envman/releases/latest/download/release-manifest.json#fragment",
+            "https://example.test/asset?signature=unexpected",
+        ):
+            with self.subTest(candidate=candidate), self.assertRaises(release.ReleaseProtocolError):
+                release._redirect_host(candidate, initial=True)
     def test_manifest_rejects_non_github_asset_url(self) -> None:
         encoded, _ = manifest_bytes()
         payload = json.loads(encoded)
