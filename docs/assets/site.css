@@ -53,5 +53,10 @@ code { font-size: .92em; }
 table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 th, td { border: 1px solid var(--line); padding: .55rem; text-align: left; }
 .site-footer { border-top: 1px solid var(--line); padding: 2rem 0 3rem; color: var(--muted); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-@media (max-width: 680px) { .site-header { align-items: flex-start; padding: 1rem 0; flex-direction: column; } .hero { grid-template-columns: 1fr; } h1 { max-width: 100%; } }
+@media (max-width: 680px) {
+  .site-header { align-items: flex-start; padding: 1rem 0; flex-direction: column; }
+  .hero { grid-template-columns: minmax(0, 1fr); }
+  .hero-copy, .panel { min-width: 0; }
+  h1 { max-width: 100%; overflow-wrap: anywhere; }
+}
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
