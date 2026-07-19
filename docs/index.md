@@ -19,7 +19,7 @@ description: A terminal UI and scriptable CLI for durable environment variables 
     <div class="panel-header"><span>envman / catalog</span><span class="signal">encrypted backups ready</span></div>
     <pre class="readout" aria-label="Illustrative output"><span class="status">healthy</span>
 OMNIROUTE_BASE_URL  https://llm.example/v1
-OMNIROUTE_API_KEY   <masked>
+OMNIROUTE_API_KEY   &lt;masked&gt;
 PROJECT_PATH        /srv/project
 
 [Enter] edit  [E] export  [I] import  [Q] quit</pre>
