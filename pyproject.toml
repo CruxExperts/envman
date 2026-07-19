@@ -1,9 +1,48 @@
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
 [project]
 name = "envman"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Portable terminal environment-variable manager"
-requires-python = ">=3.12"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "CruxExperts contributors" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console :: Curses",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Systems Administration",
+]
+dependencies = ["cryptography==49.0.0"]
 
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]
+[project.urls]
+Homepage = "https://cruxexperts.github.io/envman/"
+Repository = "https://github.com/CruxExperts/envman"
+Issues = "https://github.com/CruxExperts/envman/issues"
+Discussions = "https://github.com/CruxExperts/envman/discussions"
+Security = "https://github.com/CruxExperts/envman/security/advisories/new"
+
+[project.scripts]
+envman = "envman.cli:main"
+
+[dependency-groups]
+dev = [
+  "hatchling==1.31.0",
+  "PyYAML==6.0.3",
+]
+
+[tool.hatch.version]
+path = "VERSION"
+pattern = "^(?P<version>\\d+\\.\\d+\\.\\d+)\\s*$"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/envman"]
+
+[tool.uv]
+required-version = "==0.11.21"
