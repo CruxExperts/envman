@@ -2,6 +2,7 @@
 """Check and plan Envman's patch-default Conventional Commit release policy."""
 from __future__ import annotations
 
+import ast
 import argparse
 import json
 import re
@@ -28,6 +29,67 @@ def version() -> str:
     value = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     if SEMVER.fullmatch(value) is None:
         raise ValueError("VERSION must be strict MAJOR.MINOR.PATCH SemVer")
+    return value
+
+
+def installer_version() -> str:
+    """Parse the sole canonical installer-version assignment from the protocol."""
+    protocol = ROOT / "src" / "envman" / "_release_protocol.py"
+    source = protocol.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source, filename=str(protocol))
+    except SyntaxError as exc:
+        raise ValueError("release protocol must be valid Python") from exc
+
+    canonical = [
+        statement
+        for statement in tree.body
+        if isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+        and statement.targets[0].id == "INSTALLER_VERSION"
+    ]
+    if len(canonical) != 1:
+        raise ValueError("release protocol must contain exactly one canonical module-level INSTALLER_VERSION assignment")
+    assignment = canonical[0]
+    canonical_target = assignment.targets[0]
+
+    for node in ast.walk(tree):
+        noncanonical = (
+            isinstance(node, ast.Name)
+            and node.id == "INSTALLER_VERSION"
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            and node is not canonical_target
+        )
+        noncanonical = noncanonical or (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node.name == "INSTALLER_VERSION"
+        )
+        noncanonical = noncanonical or isinstance(node, ast.arg) and node.arg == "INSTALLER_VERSION"
+        noncanonical = noncanonical or (
+            isinstance(node, ast.ExceptHandler) and node.name == "INSTALLER_VERSION"
+        )
+        noncanonical = noncanonical or (
+            isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name == "INSTALLER_VERSION"
+        )
+        noncanonical = noncanonical or (
+            isinstance(node, ast.MatchMapping) and node.rest == "INSTALLER_VERSION"
+        )
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                imported_name = alias.asname or (
+                    alias.name.split(".", 1)[0] if isinstance(node, ast.Import) else alias.name
+                )
+                if alias.name == "*" or imported_name == "INSTALLER_VERSION":
+                    noncanonical = True
+        if noncanonical:
+            raise ValueError("release protocol contains a noncanonical INSTALLER_VERSION binding")
+
+    if not isinstance(assignment.value, ast.Constant) or not isinstance(assignment.value.value, str):
+        raise ValueError('INSTALLER_VERSION must be assigned as "MAJOR.MINOR.PATCH"')
+    value = assignment.value.value
+    if SEMVER.fullmatch(value) is None:
+        raise ValueError("INSTALLER_VERSION must be strict MAJOR.MINOR.PATCH SemVer")
     return value
 
 
@@ -95,6 +157,9 @@ def check() -> int:
     match = README_VERSION.search((ROOT / "README.md").read_text(encoding="utf-8"))
     if match is None or match.group("version") != current:
         raise ValueError("README version display must equal VERSION")
+    installer = installer_version()
+    if installer != current:
+        raise ValueError("INSTALLER_VERSION must equal VERSION")
     return 0
 
 

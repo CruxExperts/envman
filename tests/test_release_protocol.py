@@ -154,8 +154,8 @@ class ReleaseProtocolTests(unittest.TestCase):
                 state_root=Path(temporary) / "state",
             )
             self.assertEqual(receipt.installed_version, "0.1.0")
-            self.assertEqual(receipt.installer_version, "0.1.4")
-            self.assertEqual(release.read_receipt(release.receipt_path(Path(temporary) / "state")).installer_version, "0.1.4")
+            self.assertEqual(receipt.installer_version, "0.1.5")
+            self.assertEqual(release.read_receipt(release.receipt_path(Path(temporary) / "state")).installer_version, "0.1.5")
             install = next(call for call in calls if call[:3] == ["uv", "tool", "install"])
             self.assertEqual(install[:8], ["uv", "tool", "install", "--python", "3.12", "--force", "--no-build", "--constraints"])
             self.assertIn(["/isolated/uv-bin/envman", "--version"], calls)

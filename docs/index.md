@@ -6,11 +6,11 @@ description: Manage persistent environment variables from a Linux terminal UI or
 
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
-    <p class="status">release 0.1.4</p>
+    <p class="status">release 0.1.5</p>
     <h1 id="hero-title">Manage persistent environment variables from a terminal UI or CLI.</h1>
     <p>Envman keeps a validated set of per-user variables in one managed file. Use the full-height terminal UI for interactive work or the CLI for repeatable commands and JSON output.</p>
     <div class="actions" aria-label="Primary actions">
-      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.4</a>
+      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.5</a>
       <a class="button secondary" href="{{ '/guides/tui' | relative_url }}">Terminal UI</a>
       <a class="button secondary" href="{{ '/guides/cli' | relative_url }}">CLI reference</a>
     </div>
@@ -48,7 +48,7 @@ description: Manage persistent environment variables from a Linux terminal UI or
 
 ## Install a verified release
 
-Envman 0.1.4 requires Linux x86_64, CPython 3.12, and `uv >=0.11,<0.12`:
+Envman 0.1.5 requires Linux x86_64, CPython 3.12, and `uv >=0.11,<0.12`:
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
@@ -56,7 +56,7 @@ ENVMAN="$(uv tool dir --bin)/envman"
 "$ENVMAN" --version
 ```
 
-The standalone installer verifies the GitHub release manifest, immutable asset URLs, SHA-256 hashes, wheel metadata, runtime constraints, and the selected `uv` runtime before installing with `uv tool install --no-build`. It resolves the installed command through `uv tool dir --bin`, so installation and verification succeed even if that directory is not yet in `PATH`. It records an installation receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; receipts created by the 0.1.4 installer record `installer_version: 0.1.4`, and updates use that recorded provider and do not silently switch channels. [Read the installation trust boundary.]({{ '/reference/install-source-and-updates' | relative_url }})
+The standalone installer verifies the GitHub release manifest, immutable asset URLs, SHA-256 hashes, wheel metadata, runtime constraints, and the selected `uv` runtime before installing with `uv tool install --no-build`. It resolves the installed command through `uv tool dir --bin`, so installation and verification succeed even if that directory is not yet in `PATH`. It records an installation receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; receipts created by the 0.1.5 installer record `installer_version: 0.1.5`, and updates use that recorded provider and do not silently switch channels. [Read the installation trust boundary.]({{ '/reference/install-source-and-updates' | relative_url }})
 
 ## Where state lives
 

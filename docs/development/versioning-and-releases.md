@@ -14,7 +14,7 @@ uv run --locked --no-sync python scripts/version.py sync
 uv run --locked --no-sync python scripts/version.py check
 ```
 
-`sync` changes only the README version display. `check` fails unless the README display and `VERSION` contain the same strict `MAJOR.MINOR.PATCH` value.
+`sync` changes only the README version display. `check` parses the canonical release protocol and fails unless the README display matches `VERSION` and `INSTALLER_VERSION == VERSION`; all three values must be strict `MAJOR.MINOR.PATCH` versions. This release gate prevents stale installer receipt provenance from shipping.
 
 ## Patch-default planning
 
@@ -42,8 +42,8 @@ The highest explicit or default intent wins across the release batch. A `BREAKIN
 After updating `VERSION`, the README, and the changelog, create a version-matching tag and push it only after the local checks pass:
 
 ```bash
-git tag v0.1.4 -m "Release v0.1.4"
-git push origin v0.1.4
+git tag v0.1.5 -m "Release v0.1.5"
+git push origin v0.1.5
 ```
 
 The release workflow runs only for tags matching `v[0-9]*`. Its source gate requires the tag name without `v` to equal `VERSION` and the tagged commit to be an ancestor of `origin/main`. It then runs locked tests, `version.py check`, the documentation-index check, and installer rendering parity.
@@ -52,4 +52,4 @@ The release workflow runs only for tags matching `v[0-9]*`. Its source gate requ
 
 The build job sets `SOURCE_DATE_EPOCH` to the tagged commit timestamp, runs `uv build --no-build-isolation` twice, and requires byte-identical wheel and source-archive outputs. `scripts/release_assets.py` writes exact transitive runtime pins from `uv.lock`, one release manifest, and `SHA256SUMS.txt`. The publish job creates a draft GitHub release from the matching `CHANGELOG.md` section, uploads the wheel, source archive, installer, manifest, constraints, and checksum list, attests the release assets, and then clears the draft state.
 
-The installer and `envman update` verify the manifest, asset URL and hash, wheel metadata, compatibility, and runtime constraints. Installation records a private receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; an update requires that receipt and refuses to switch providers or downgrade. A failed replacement attempts a rollback, so inspect the receipt and the installed command before declaring publication complete.
+The canonical release protocol and rendered installer must carry the same `INSTALLER_VERSION` as `VERSION`, so the v0.1.5 installer writes `installer_version: 0.1.5` in every new receipt. The installer and `envman update` verify the manifest, asset URL and hash, wheel metadata, compatibility, and runtime constraints. Installation records a private receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; an update requires that receipt and refuses to switch providers or downgrade. A failed replacement attempts a rollback, so inspect the receipt and the installed command before declaring publication complete.

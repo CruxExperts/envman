@@ -2,6 +2,12 @@
 
 All notable changes are documented here.
 
+## [0.1.5] - 2026-07-20
+
+### Fixed
+
+- Add a release-check invariant that parses the canonical release protocol and rejects a stale installer provenance version unless `INSTALLER_VERSION == VERSION`.
+
 ## [0.1.4] - 2026-07-20
 
 ### Fixed

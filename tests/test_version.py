@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("envman_version", Path(__file__).parents[1] / "scripts" / "version.py")
 assert SPEC is not None and SPEC.loader is not None
@@ -47,6 +48,41 @@ class VersionPolicyTests(unittest.TestCase):
         self.assertEqual(result["bump"], "patch")
         self.assertEqual(result["target"], "0.1.2")
 
+
+    def test_check_rejects_stale_installer_version_in_release_protocol(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            protocol = root / "src" / "envman" / "_release_protocol.py"
+            protocol.parent.mkdir(parents=True)
+            (root / "VERSION").write_text("0.1.5\n", encoding="utf-8")
+            (root / "README.md").write_text("**Version:** 0.1.5\n", encoding="utf-8")
+            protocol.write_text(
+                '# INSTALLER_VERSION = "0.1.5"\n'
+                'note = \'INSTALLER_VERSION = "0.1.5"\'\n'
+                'INSTALLER_VERSION = "0.1.3"\n',
+                encoding="utf-8",
+            )
+            with patch.object(version_tool, "ROOT", root):
+                with self.assertRaisesRegex(ValueError, "INSTALLER_VERSION"):
+                    version_tool.check()
+
+    def test_installer_version_rejects_noncanonical_bindings(self) -> None:
+        cases = {
+            "missing": 'value = "0.1.5"\n',
+            "duplicate": 'INSTALLER_VERSION = "0.1.5"\nINSTALLER_VERSION = "0.1.5"\n',
+            "nested": 'def configure():\n    INSTALLER_VERSION = "0.1.5"\n',
+            "rebound": 'INSTALLER_VERSION = "0.1.5"\nfor INSTALLER_VERSION in ("0.1.4",):\n    pass\n',
+            "trivia-only": '# INSTALLER_VERSION = "0.1.5"\nnote = \'INSTALLER_VERSION = "0.1.5"\'\n',
+        }
+        for case, source in cases.items():
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                protocol = root / "src" / "envman" / "_release_protocol.py"
+                protocol.parent.mkdir(parents=True)
+                protocol.write_text(source, encoding="utf-8")
+                with patch.object(version_tool, "ROOT", root):
+                    with self.assertRaisesRegex(ValueError, "INSTALLER_VERSION"):
+                        version_tool.installer_version()
 
 if __name__ == "__main__":
     unittest.main()

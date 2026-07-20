@@ -1,5 +1,5 @@
 # Envman
-**Version:** 0.1.4
+**Version:** 0.1.5
 
 Envman manages durable, per-user environment variables on Linux. Use the terminal UI to inspect and edit them, or the CLI to validate and automate changes without putting values in shell startup files by hand.
 
