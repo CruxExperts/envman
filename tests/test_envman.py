@@ -29,9 +29,28 @@ class EnvmanInputTests(unittest.TestCase):
         with self.assertRaisesRegex(envman.StoreError, "exceed"):
             envman.validate_value("a" * (envman.MAX_VALUE_LENGTH + 1))
 
+    def test_secret_assignment_rejects_short_values_but_allows_short_non_secrets(self) -> None:
+        with self.assertRaisesRegex(envman.StoreError, "six"):
+            envman.validate_assignment("API_KEY", "12345")
+        envman.validate_assignment("PUBLIC_VALUE", "short")
+
     def test_secret_values_cannot_be_empty(self) -> None:
         with self.assertRaisesRegex(envman.StoreError, "cannot be empty"):
             envman.prepare_value("SH0T_API_KEY", "   ")
+
+    def test_secret_name_classification_handles_key_boundaries_and_references(self) -> None:
+        for name in ("KEY", "API_KEY", "MY_KEY_VALUE", "DATABASE_PASSWORD"):
+            with self.subTest(name=name):
+                self.assertTrue(envman.is_secret_name(name))
+        for name in ("MONKEY", "KEYSTONE", "MYKEYVALUE", "_API_KEY_ENV", "SERVICE_API_KEY_ENV"):
+            with self.subTest(name=name):
+                self.assertFalse(envman.is_secret_name(name))
+
+    def test_short_public_values_cannot_be_renamed_to_secret_names(self) -> None:
+        for new_name in ("KEY", "API_KEY"):
+            with self.subTest(new_name=new_name):
+                with self.assertRaisesRegex(envman.StoreError, "six"):
+                    envman.validate_rename_sensitivity("PUBLIC_VALUE", new_name, "short")
 
     def test_copied_values_are_normalized_and_cannot_be_empty_or_exposed(self) -> None:
         values = {
@@ -48,17 +67,25 @@ class EnvmanInputTests(unittest.TestCase):
         with self.assertRaisesRegex(envman.StoreError, "expose"):
             envman.prepare_copied_value("TARGET_VALUE", "SOURCE_API_KEY", values)
 
-    def test_mask_value_keeps_only_first_and_last_four_characters(self) -> None:
-        self.assertEqual(envman.mask_value("abcdefghijk"), "abcd****hijk")
-        self.assertEqual(envman.mask_value("short"), "*****")
+    def test_mask_value_uses_length_specific_visible_boundaries(self) -> None:
+        cases = (
+            ("abcde", "*****"),
+            ("abcdef", "a****f"),
+            ("abcdefghi", "a*******i"),
+            ("abcdefghij", "ab******ij"),
+            ("abcdefghijklmno", "ab***********no"),
+            ("abcdefghijklmnop", "abcd********mnop"),
+        )
+        for value, expected in cases:
+            with self.subTest(length=len(value)):
+                self.assertEqual(envman.mask_value(value), expected)
         self.assertEqual(envman.mask_value(""), "(empty)")
 
     def test_sensitive_names_and_urls_with_passwords_are_masked(self) -> None:
-        self.assertEqual(envman.display_value("SH0T_API_KEY", "abcdefghijk"), "abcd****hijk")
-        self.assertEqual(
-            envman.display_value("DATABASE_URL", "postgres://user:password@example.test/db"),
-            "post****t/db",
-        )
+        self.assertEqual(envman.display_value("SH0T_API_KEY", "abcdefghijk"), "ab*******jk")
+        database_url = "postgres://user:password@example.test/db"
+        self.assertEqual(envman.display_value("DATABASE_URL", database_url), envman.mask_value(database_url))
+
 
     def test_url_and_path_values_are_checked_and_normalized(self) -> None:
         value, warnings = envman.prepare_value("SERVICE_URL", " https://example.test/api ")
@@ -266,22 +293,48 @@ class EnvmanInputTests(unittest.TestCase):
         store.values = {
             "ALPHA": "zebra",
             "BRAVO": "banana",
-            "LONG_API_KEY": "abcd1234wxyz",
+            "LONG_API_KEY": "abcdefghijklm",
             "SHORT_API_KEY": "short",
         }
         self.assertEqual(envman.sortable_value("PLACEHOLDER_API_KEY", "change me"), "change me")
+        self.assertEqual(envman.sortable_value("LONG_API_KEY", "abcdefghijklm"), "ablm")
         tui = envman.EnvmanTUI(screen, store)
 
         self.assertEqual(tui.catalog_names(), ["ALPHA", "BRAVO", "LONG_API_KEY", "SHORT_API_KEY"])
         tui.sort_mode = "value_asc"
         self.assertEqual(tui.catalog_names(), ["SHORT_API_KEY", "LONG_API_KEY", "BRAVO", "ALPHA"])
         tui.filter_scope = "value"
-        tui.filter_pattern = "abcd"
+        tui.filter_pattern = "ab"
         self.assertEqual(tui.catalog_names(), ["LONG_API_KEY"])
+        tui.filter_pattern = "cd"
+        self.assertEqual(tui.catalog_names(), [])
         tui.filter_pattern = "short"
         self.assertEqual(tui.catalog_names(), [])
         tui.filter_scope = "name"
         self.assertEqual(tui.catalog_names(), ["SHORT_API_KEY"])
+
+    def test_secret_sorting_and_value_filters_match_only_visible_edges(self) -> None:
+        cases = (
+            ("SECRET_5_KEY", "abcde", "", "abc"),
+            ("SECRET_6_KEY", "abcdef", "af", "bc"),
+            ("SECRET_9_KEY", "abcdefghi", "ai", "bc"),
+            ("SECRET_10_KEY", "abcdefghij", "abij", "cd"),
+            ("SECRET_15_KEY", "abcdefghijklmno", "abno", "cd"),
+            ("SECRET_16_KEY", "abcdefghijklmnop", "abcdmnop", "ef"),
+        )
+        for name, value, visible, hidden in cases:
+            with self.subTest(name=name):
+                screen = mock.MagicMock()
+                screen.getmaxyx.return_value = (18, 120)
+                store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+                store.values = {name: value}
+                tui = envman.EnvmanTUI(screen, store)
+                tui.filter_scope = "value"
+                if visible:
+                    tui.filter_pattern = visible
+                    self.assertEqual(tui.catalog_names(), [name])
+                tui.filter_pattern = hidden
+                self.assertEqual(tui.catalog_names(), [])
 
     def test_catalog_arrow_selection_scrolls_within_available_rows(self) -> None:
         screen = mock.MagicMock()
@@ -442,7 +495,7 @@ class EnvmanInputTests(unittest.TestCase):
         self.assertFalse(candidates_by_source["bad-name"].selectable)
         self.assertEqual(
             envman.display_value("API_KEY", candidates_by_source["API_KEY"].value or ""),
-            "abcd****hijk",
+            "ab*******jk",
         )
 
     def test_encrypted_backup_round_trip_hides_pairs_and_rejects_bad_inputs(self) -> None:
@@ -475,44 +528,40 @@ class EnvmanInputTests(unittest.TestCase):
             with self.assertRaisesRegex(envman.StoreError, f"{envman.BACKUP_KEY_ENV} is not set"):
                 envman.encrypted_backup_envelope({"PUBLIC_VALUE": "value"})
 
-    def test_catalog_caps_at_ten_rows_and_zero_selects_the_tenth_item(self) -> None:
+    def test_catalog_layouts_use_all_rows_from_the_fixed_top_row(self) -> None:
+        for height in (18, 40, 60):
+            with self.subTest(height=height):
+                expected_rows = max(1, height - 14)
+                self.assertEqual(envman.catalog_layout(height), (expected_rows, envman.LIST_FIRST_ROW, 2))
+                screen = mock.MagicMock()
+                screen.getmaxyx.return_value = (height, 120)
+                store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+                store.values = {f"ITEM_{index:02d}": str(index) for index in range(12)}
+                main = envman.EnvmanTUI(screen, store)
+                preview = envman.EnvironmentImportTUI(
+                    screen,
+                    store,
+                    {f"SOURCE_{index:02d}": str(index) for index in range(12)},
+                )
+                self.assertEqual(main.catalog_row_limit(height), expected_rows)
+                self.assertEqual(preview.catalog_row_limit(height), expected_rows)
+                main.draw()
+                self.assertTrue(any(call.args[0] == envman.LIST_FIRST_ROW for call in screen.addnstr.call_args_list))
+                screen.reset_mock()
+                preview.draw()
+                self.assertTrue(any(call.args[0] == envman.LIST_FIRST_ROW for call in screen.addnstr.call_args_list))
+
+    def test_tall_catalogs_render_entries_past_the_old_ten_row_cap(self) -> None:
         screen = mock.MagicMock()
         screen.getmaxyx.return_value = (40, 120)
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         store.values = {f"ITEM_{index:02d}": str(index) for index in range(12)}
-        tui = envman.EnvmanTUI(screen, store)
-
-        self.assertEqual(tui.catalog_row_limit(40), 10)
-        tui.draw()
-        tui.select_visible_number("0")
-
-        self.assertEqual(tui.selected, 9)
-        self.assertEqual(tui.current_name(), "ITEM_09")
-
-    def test_main_and_import_catalogs_cap_and_center_ten_selector_rows(self) -> None:
-        height = 40
-        screen = mock.MagicMock()
-        screen.getmaxyx.return_value = (height, 120)
-        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
-        store.values = {f"ITEM_{index:02d}": str(index) for index in range(12)}
         main = envman.EnvmanTUI(screen, store)
-        main.number_attribute = 101
-        visible_rows, first_row, detail_rows = envman.catalog_layout(height)
-
-        self.assertEqual(visible_rows, 10)
-        self.assertEqual(main.catalog_row_limit(height), 10)
-        self.assertLessEqual(
-            abs((first_row - envman.LIST_FIRST_ROW) - (height - 5 - (first_row + visible_rows + 1 + detail_rows))),
-            1,
-        )
         main.draw()
-        self.assertTrue(
-            any(
-                call.args[0] == first_row + 9 and call.args[2] == "0" and call.args[4] == 101
-                for call in screen.addnstr.call_args_list
-            ),
-        )
-        self.assertFalse(any(call.args[2] == "ITEM_10" for call in screen.addnstr.call_args_list))
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertTrue(any("ITEM_10" in text for text in rendered))
+        self.assertTrue(any("ITEM_11" in text for text in rendered))
+        self.assertFalse(any("1-0" in text or "indexed" in text for text in rendered))
 
         screen.reset_mock()
         preview = envman.EnvironmentImportTUI(
@@ -520,19 +569,88 @@ class EnvmanInputTests(unittest.TestCase):
             store,
             {f"SOURCE_{index:02d}": str(index) for index in range(12)},
         )
-        preview.number_attribute = 202
-        self.assertEqual(preview.catalog_row_limit(height), 10)
         preview.draw()
-        preview.select_visible_number("0")
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertTrue(any("SOURCE_10" in text for text in rendered))
+        self.assertTrue(any("SOURCE_11" in text for text in rendered))
+        self.assertFalse(any("1-0" in text or "indexed" in text for text in rendered))
 
-        self.assertEqual(preview.current_candidate().source_name, "SOURCE_09")
-        self.assertTrue(
-            any(
-                call.args[0] == first_row + 9 and call.args[2] == "0" and call.args[4] == 202
-                for call in screen.addnstr.call_args_list
-            ),
-        )
-        self.assertFalse(any(call.args[2] == "SOURCE_10" for call in screen.addnstr.call_args_list))
+    def test_catalogs_render_markers_and_space_toggles_focused_entry(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        store.values = {"ALPHA": "one", "BETA": "two"}
+        main = envman.EnvmanTUI(screen, store)
+        main.selected = 1
+        main.selected_names = {"ALPHA"}
+        main.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("[*]", rendered)
+        self.assertIn("[ ]", rendered)
+
+        screen.get_wch.side_effect = [" ", 27]
+        main.draw = mock.MagicMock()
+        self.assertFalse(main.run())
+        self.assertEqual(main.selected_names, {"ALPHA", "BETA"})
+
+        screen.reset_mock()
+        preview = envman.EnvironmentImportTUI(screen, store, {"GAMMA": "three", "DELTA": "four"})
+        preview.selected = 0
+        preview.selected_sources = {"GAMMA"}
+        preview.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("[*]", rendered)
+        self.assertIn("[ ]", rendered)
+        screen.get_wch.side_effect = [" ", 27]
+        preview.draw = mock.MagicMock()
+        self.assertFalse(preview.run())
+        self.assertEqual(preview.selected_sources, {"GAMMA", "DELTA"})
+
+    def test_numeric_keys_are_not_dispatch_or_catalog_hints(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        screen.get_wch.side_effect = ["1", 27]
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        store.values = {"ALPHA": "one"}
+        tui = envman.EnvmanTUI(screen, store)
+        tui.draw = mock.MagicMock()
+        self.assertFalse(tui.run())
+        self.assertEqual(tui.selected_names, set())
+
+        screen.reset_mock()
+        screen.get_wch.side_effect = ["1", 27]
+        preview = envman.EnvironmentImportTUI(screen, store, {"BETA": "two"})
+        preview.draw = mock.MagicMock()
+        self.assertFalse(preview.run())
+        self.assertEqual(preview.selected_sources, set())
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertFalse(any("1-0" in text or "indexed" in text for text in rendered))
+
+    def test_managed_selections_are_pruned_when_filter_hides_entries(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        store.values = {"ALPHA": "one", "BETA": "two"}
+        tui = envman.EnvmanTUI(screen, store)
+        tui.selected_names = {"ALPHA", "BETA"}
+        tui.filter_pattern = "alpha"
+
+        tui.draw()
+
+        self.assertEqual(tui.selected_names, {"ALPHA"})
+
+    def test_import_selections_are_pruned_when_filter_hides_sources(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        preview = envman.EnvironmentImportTUI(screen, store, {"ALPHA": "one", "BETA": "two"})
+        preview.selected_sources = {"ALPHA", "BETA"}
+        preview.filter_pattern = "alpha"
+
+        preview.draw()
+
+        self.assertEqual(preview.selected_sources, {"ALPHA"})
+
 
     def test_import_select_all_shown_toggles_only_importable_candidates(self) -> None:
         screen = mock.MagicMock()
@@ -551,18 +669,18 @@ class EnvmanInputTests(unittest.TestCase):
         self.assertEqual(preview.selected_sources, set())
         self.assertIn("Cleared 2 shown", preview.status)
 
-    def test_tui_dispatches_encrypted_backup_actions(self) -> None:
+    def test_tui_dispatches_group_backup_and_encrypted_import_actions(self) -> None:
         screen = mock.MagicMock()
         screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
         screen.get_wch.side_effect = ["b", "j", 27]
         tui = envman.EnvmanTUI(screen, envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config")))
         tui.draw = mock.MagicMock()
         tui.configure_colors = mock.MagicMock()
-        tui.export_encrypted_backup = mock.MagicMock()
+        tui.backup_group = mock.MagicMock()
         tui.import_encrypted_backup = mock.MagicMock()
 
         self.assertFalse(tui.run())
-        tui.export_encrypted_backup.assert_called_once_with()
+        tui.backup_group.assert_called_once_with()
         tui.import_encrypted_backup.assert_called_once_with()
 
     def test_import_catalog_hides_already_managed_variables(self) -> None:
@@ -629,10 +747,11 @@ class EnvmanInputTests(unittest.TestCase):
             (("A", "all shown"), ("Esc", "back")),
             key_attribute=44,
             label_attribute=55,
+            separator="",
         )
         legend_attributes = {call.args[2]: call.args[4] for call in screen.addnstr.call_args_list}
         self.assertEqual(legend_attributes["A"], 44)
-        self.assertEqual(legend_attributes[" all shown  "], 55)
+        self.assertEqual(next(attribute for text, attribute in legend_attributes.items() if text.startswith("all shown")), 55)
         self.assertEqual(legend_attributes["Esc"], 44)
 
         screen.reset_mock()
@@ -647,7 +766,7 @@ class EnvmanInputTests(unittest.TestCase):
         )
         legend_attributes = {call.args[2]: call.args[4] for call in screen.addnstr.call_args_list}
         self.assertEqual(legend_attributes["A"], 44)
-        self.assertEqual(legend_attributes["dd  "], 55)
+        self.assertEqual(next(attribute for text, attribute in legend_attributes.items() if text.startswith("dd")), 55)
 
     def test_catalog_headers_color_each_input_key(self) -> None:
         self.assertEqual(envman.TITLE_ROW, 0)
@@ -668,10 +787,9 @@ class EnvmanInputTests(unittest.TestCase):
             (envman.CATALOG_CONTROLS_ROW, "O"),
             (envman.CATALOG_CONTROLS_ROW, "M"),
             (envman.CATALOG_CONTROLS_ROW, "F"),
-            (envman.CATALOG_HINT_ROW, "1-0"),
-            (envman.CATALOG_HINT_ROW, "Up/Down"),
         ):
             self.assertEqual(main_attributes[row, key], 44 | envman.curses.A_BOLD)
+        self.assertFalse(any(key == "1-0" for row, key in main_attributes))
 
         screen.reset_mock()
         preview = envman.EnvironmentImportTUI(screen, store, {"EXTERNAL": "value"})
@@ -705,7 +823,7 @@ class EnvmanInputTests(unittest.TestCase):
         attributes = {call.args[2]: call.args[4] for call in screen.addnstr.call_args_list}
         self.assertEqual(attributes["Selected: "], envman.curses.A_DIM)
         self.assertEqual(attributes["API_KEY"], 11)
-        self.assertEqual(attributes["abcd****hijk"], 22)
+        self.assertEqual(attributes["ab*******jk"], 22)
 
     def test_wrapped_segments_continue_after_an_exact_line_boundary(self) -> None:
         screen = mock.MagicMock()
@@ -731,6 +849,20 @@ class EnvmanInputTests(unittest.TestCase):
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         store.values = {"ALPHA": "one"}
 
+        def footer_text() -> str:
+            calls = [
+                call
+                for call in screen.addnstr.call_args_list
+                if call.args[0] in {height - 4, height - 3}
+            ]
+            rows = {}
+            for call in calls:
+                rows.setdefault(call.args[0], []).append(call)
+            return "\n".join(
+                "".join(call.args[2] for call in sorted(row_calls, key=lambda item: item.args[1]))
+                for row_calls in rows.values()
+            )
+
         envman.EnvmanTUI(screen, store).draw()
         main_footer = {
             call.args[2]
@@ -738,28 +870,13 @@ class EnvmanInputTests(unittest.TestCase):
             if call.args[0] in {height - 4, height - 3}
         }
         self.assertTrue(
-            {"A", "E", "C", "R", "D", "I", "J", "B", "O", "F", "M", "1-0", "[/]", "Esc/Q"}.issubset(
-                main_footer
-            )
+            {"A", "E", "C", "R", "D", "I", "J", "B", "O", "F", "M", "[/]", "Esc/Q"}.issubset(main_footer)
         )
-        self.assertTrue(
-            {
-                "dd  ",
-                "dit  ",
-                "opy  ",
-                "ename  ",
-                "elete  ",
-                "mport  ",
-                "mport Backup  ",
-                " ackup  ",
-                " rder  ",
-                " ilter  ",
-                " ode  ",
-                " select  ",
-                " view  ",
-                " reload  ",
-            }.issubset(main_footer)
-        )
+        main_text = footer_text()
+        self.assertIn("Backup", main_text)
+        self.assertNotIn("B ackup", main_text)
+        self.assertIn("Add  Edit", main_text)
+        self.assertIn("Backup  Import", main_text)
 
         screen.reset_mock()
         envman.EnvironmentImportTUI(screen, store, {"ALPHA": "one"}).draw()
@@ -768,10 +885,12 @@ class EnvmanInputTests(unittest.TestCase):
             for call in screen.addnstr.call_args_list
             if call.args[0] in {height - 4, height - 3}
         }
-        self.assertTrue({"Space", "A", "Enter", "O", "F", "M", "1-0", "[/]", "Esc"}.issubset(import_footer))
-        self.assertTrue(
-            {" Toggle  ", "ll  ", " Import  ", "rder  ", "ilter  ", "ode  "}.issubset(import_footer)
-        )
+        self.assertTrue({"Space", "A", "Enter", "O", "F", "M", "[/]", "Esc"}.issubset(import_footer))
+        import_text = footer_text()
+        self.assertIn("SpaceToggle", import_text)
+        self.assertIn("EnterImport", import_text)
+        self.assertIn("SpaceToggle  All", import_text)
+        self.assertIn("[/]view  Escback", import_text)
 
     def test_selected_detail_omits_redundant_masking_notice(self) -> None:
         screen = mock.MagicMock()
@@ -783,9 +902,9 @@ class EnvmanInputTests(unittest.TestCase):
         main_detail = " ".join(main.detail_lines(120))
         import_detail = " ".join(preview.detail_lines(120))
 
-        self.assertEqual(main_detail, "Selected: API_KEY = abcd****hijk")
+        self.assertEqual(main_detail, "Selected: API_KEY = ab*******jk")
         self.assertNotIn("sensitive value masked", import_detail)
-        self.assertIn("Selected external value: abcd****hijk", import_detail)
+        self.assertIn("Selected external value: ab*******jk", import_detail)
 
     def test_catalog_rows_show_ellipsis_and_hide_managed_imports(self) -> None:
         screen = mock.MagicMock()
@@ -813,7 +932,7 @@ class EnvmanInputTests(unittest.TestCase):
 
     def test_import_preserves_credential_reference_bytes(self) -> None:
         candidates = envman.environment_import_candidates(
-            {"lower_key": "value", "SELECTED_API_KEY_ENV": "lower_key"},
+            {"lower_key": "secretvalue", "SELECTED_API_KEY_ENV": "lower_key"},
             {},
         )
 
@@ -853,6 +972,26 @@ class EnvmanInputTests(unittest.TestCase):
             any("..." in call.args[2] and call.args[2].endswith(value[-10:]) for call in screen.addnstr.call_args_list),
         )
 
+    @mock.patch.object(envman.curses, "curs_set")
+    def test_prompt_clears_the_line_and_places_cursor_after_the_edit(self, _: mock.MagicMock) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        screen.get_wch.side_effect = ["a", "b", "\n"]
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+
+        self.assertEqual(envman.EnvmanTUI(screen, store).prompt("Value"), "ab")
+
+        row = envman.MIN_TUI_HEIGHT - 2
+        prefix = "Value (Esc cancels): "
+        expected_cursor = mock.call(row, 2 + len(prefix) + 2)
+        self.assertGreaterEqual(screen.clrtoeol.call_count, 2)
+        self.assertIn(mock.call(row, 0), screen.move.call_args_list)
+        self.assertEqual(screen.move.call_args_list[-1], expected_cursor)
+        method_names = [call[0] for call in screen.method_calls]
+        prompt_writes = [index for index, name in enumerate(method_names) if name == "addnstr"]
+        self.assertTrue(prompt_writes)
+        self.assertTrue(all(index > 0 and method_names[index - 1] == "clrtoeol" for index in prompt_writes))
+
 
 class EnvmanPersistenceTests(unittest.TestCase):
     def test_add_persists_trimmed_value_and_reloads_it(self) -> None:
@@ -886,7 +1025,96 @@ class EnvmanPersistenceTests(unittest.TestCase):
             tui.copy_value()
 
             self.assertEqual(store.values["TARGET_URL"], "https://example.test/api")
-            self.assertIn("SOURCE_URL copied to TARGET_URL", tui.status)
+            self.assertIn("SOURCE_URL copied to 1 variable(s). Saved.", tui.status)
+
+    def test_group_copy_updates_selected_targets_with_one_persistence_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {
+                "SOURCE_VALUE": "replacement",
+                "TARGET_ALPHA": "old-alpha",
+                "TARGET_BETA": "old-beta",
+            }
+            tui = envman.EnvmanTUI(mock.MagicMock(), store)
+            tui.selected_names = {"TARGET_ALPHA", "TARGET_BETA"}
+            tui.prompt_name = mock.MagicMock(return_value="SOURCE_VALUE")
+
+            with mock.patch.object(store, "save") as save:
+                tui.copy_value()
+
+            tui.prompt_name.assert_called_once_with("Copy value to 2 variable(s) from")
+            self.assertEqual(store.values["TARGET_ALPHA"], "replacement")
+            self.assertEqual(store.values["TARGET_BETA"], "replacement")
+            self.assertEqual(store.values["SOURCE_VALUE"], "replacement")
+            save.assert_called_once_with()
+
+    def test_group_delete_removes_selected_targets_with_one_persistence_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {"ALPHA": "one", "BETA": "two", "KEEP": "keep"}
+            tui = envman.EnvmanTUI(mock.MagicMock(), store)
+            tui.screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+            tui.selected_names = {"ALPHA", "BETA"}
+            tui.confirm = mock.MagicMock(return_value=True)
+
+            with mock.patch.object(store, "save") as save:
+                tui.delete()
+
+            self.assertEqual(store.values, {"KEEP": "keep"})
+            save.assert_called_once_with()
+            self.assertEqual(tui.selected_names, set())
+
+    def test_delete_without_explicit_selection_uses_the_focused_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {"ALPHA": "one", "BETA": "two"}
+            tui = envman.EnvmanTUI(mock.MagicMock(), store)
+            tui.selected = 1
+            tui.confirm = mock.MagicMock(return_value=True)
+            tui.screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+
+            with mock.patch.object(store, "save") as save:
+                tui.delete()
+
+            self.assertEqual(store.values, {"ALPHA": "one"})
+            save.assert_called_once_with()
+
+    def test_group_backup_exports_only_selected_values_at_the_backup_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {"ALPHA": "one", "BETA": "two"}
+            tui = envman.EnvmanTUI(mock.MagicMock(), store)
+            tui.selected_names = {"BETA"}
+            tui.prompt = mock.MagicMock(return_value=str(home / "backup.json"))
+
+            with mock.patch.object(envman, "write_encrypted_backup") as write_backup:
+                tui.export_encrypted_backup()
+
+            self.assertEqual(write_backup.call_count, 1)
+            self.assertEqual(write_backup.call_args.args[1], {"BETA": "two"})
+
+    def test_group_backup_without_selection_exports_all_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {"ALPHA": "one", "BETA": "two"}
+            tui = envman.EnvmanTUI(mock.MagicMock(), store)
+            tui.prompt = mock.MagicMock(return_value=str(home / "backup.json"))
+
+            with mock.patch.object(envman, "write_encrypted_backup") as write_backup:
+                tui.export_encrypted_backup()
+
+            self.assertEqual(write_backup.call_count, 1)
+            self.assertEqual(write_backup.call_args.args[1], {"ALPHA": "one", "BETA": "two"})
 
     def test_tui_resolves_existing_variable_names_entered_as_values(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -923,7 +1151,7 @@ class EnvmanPersistenceTests(unittest.TestCase):
             self.assertEqual(store.values["TARGET_API_KEY"], "replacement-api-key")
             self.assertIn("TARGET_API_KEY updated", tui.status)
 
-    def test_tui_copy_reenters_source_after_credential_warning_is_cancelled(self) -> None:
+    def test_tui_copy_warning_escape_reenters_source_and_cancels_without_saving(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             home = Path(temporary_directory) / "home"
             home.mkdir()
@@ -934,14 +1162,43 @@ class EnvmanPersistenceTests(unittest.TestCase):
             }
             tui = envman.EnvmanTUI(mock.MagicMock(), store)
             tui.selected = 1
-            tui.prompt_name = mock.MagicMock(side_effect=["SOURCE_URL", "SOURCE_URL"])
-            tui.prompt = mock.MagicMock(side_effect=[None, ""])
+            tui.prompt_name = mock.MagicMock(side_effect=["SOURCE_URL", None])
+            tui.prompt = mock.MagicMock(return_value=None)
 
-            tui.copy_value()
+            with mock.patch.object(store, "save") as save:
+                tui.copy_value()
 
-            self.assertEqual(store.values["TARGET_API_KEY"], "https://example.test/api")
+            self.assertIn("credential", tui.prompt.call_args.args[0].casefold())
+            save.assert_not_called()
             self.assertEqual(tui.prompt_name.call_count, 2)
-            self.assertIn("SOURCE_URL copied to TARGET_API_KEY", tui.status)
+            tui.prompt.assert_called_once()
+            self.assertIn("credential", tui.prompt.call_args.args[0].casefold())
+            self.assertIn("cancel", tui.status.casefold())
+
+    def test_group_copy_warning_acceptance_saves_selected_api_targets_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {
+                "SOURCE_URL": "https://example.test/api",
+                "TARGET_ALPHA_API_KEY": "old-alpha",
+                "TARGET_BETA_API_KEY": "old-beta",
+            }
+            tui = envman.EnvmanTUI(mock.MagicMock(), store)
+            tui.selected_names = {"TARGET_ALPHA_API_KEY", "TARGET_BETA_API_KEY"}
+            tui.prompt_name = mock.MagicMock(return_value="SOURCE_URL")
+            tui.prompt = mock.MagicMock(return_value="")
+
+            with mock.patch.object(store, "save") as save:
+                tui.copy_value()
+
+            self.assertEqual(store.values["TARGET_ALPHA_API_KEY"], "https://example.test/api")
+            self.assertEqual(store.values["TARGET_BETA_API_KEY"], "https://example.test/api")
+            save.assert_called_once_with()
+            tui.prompt_name.assert_called_once()
+            tui.prompt.assert_called_once()
+            self.assertIn("credential", tui.prompt.call_args.args[0].casefold())
 
     def test_selected_import_persists_external_values_and_replaces_collisions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1040,7 +1297,7 @@ class EnvmanCliTests(unittest.TestCase):
                 self.assertEqual(preview["action"], "preview")
                 self.assertEqual(
                     preview["variables"][0]["variable"],
-                    {"name": "API_KEY", "sensitive": True, "value": "abcd****hijk"},
+                    {"name": "API_KEY", "sensitive": True, "value": "ab*******jk"},
                 )
                 self.assertEqual(store.values, {})
 
@@ -1252,7 +1509,7 @@ class EnvmanCliTests(unittest.TestCase):
             exit_code, output = self.run_command(store, "set", "target-api-key", "--from", "source-api-key", "--json")
             self.assertEqual(exit_code, envman.EXIT_SUCCESS)
             self.assertNotIn("abcdefghijk", output)
-            self.assertEqual(json.loads(output)["variable"]["value"], "abcd****hijk")
+            self.assertEqual(json.loads(output)["variable"]["value"], "ab*******jk")
             self.assertEqual(store.values["TARGET_API_KEY"], "abcdefghijk")
             exit_code, output = self.run_command(
                 store,
@@ -1288,7 +1545,7 @@ class EnvmanCliTests(unittest.TestCase):
 
             self.assertEqual(exit_code, envman.EXIT_SUCCESS)
             self.assertNotIn("abcdefghijk", output)
-            self.assertEqual(json.loads(output)["variable"]["value"], "abcd****hijk")
+            self.assertEqual(json.loads(output)["variable"]["value"], "ab*******jk")
             self.assertEqual(store.values["TARGET_API_KEY"], "abcdefghijk")
             exit_code, output = self.run_command(
                 store,
@@ -1430,12 +1687,12 @@ class EnvmanCliTests(unittest.TestCase):
             )
             self.assertEqual(exit_code, envman.EXIT_SUCCESS)
             self.assertNotIn("abcdefghijk", output)
-            self.assertEqual(json.loads(output)["variable"]["value"], "abcd****hijk")
+            self.assertEqual(json.loads(output)["variable"]["value"], "ab*******jk")
 
             exit_code, output = self.run_command(store, "get", "SH0T_API_KEY", "--json")
             self.assertEqual(exit_code, envman.EXIT_SUCCESS)
             self.assertNotIn("abcdefghijk", output)
-            self.assertEqual(json.loads(output)["variable"]["value"], "abcd****hijk")
+            self.assertEqual(json.loads(output)["variable"]["value"], "ab*******jk")
 
             exit_code, output = self.run_command(store, "get", "SH0T_API_KEY", "--reveal")
             self.assertEqual(exit_code, envman.EXIT_SUCCESS)
@@ -1488,6 +1745,37 @@ class EnvmanCliTests(unittest.TestCase):
                 self.run_command(store, "rename", "API_KEY", "SERVICE_VALUE")
 
             self.assertEqual(store.values, {"API_KEY": "abcdefghijk"})
+
+    def test_cli_rejects_short_public_rename_to_secret_names_without_mutation_or_save(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.values = {"PUBLIC_VALUE": "short"}
+
+            for new_name in ("KEY", "API_KEY"):
+                with self.subTest(new_name=new_name):
+                    with mock.patch.object(store, "save") as save:
+                        with self.assertRaisesRegex(envman.CommandError, "six"):
+                            self.run_command(store, "rename", "PUBLIC_VALUE", new_name)
+                    save.assert_not_called()
+                    self.assertEqual(store.values, {"PUBLIC_VALUE": "short"})
+                    self.assertFalse(store.target.exists())
+
+    def test_tui_rejects_short_public_rename_to_secret_names_without_mutation_or_save(self) -> None:
+        for new_name in ("KEY", "API_KEY"):
+            with self.subTest(new_name=new_name):
+                store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+                store.values = {"PUBLIC_VALUE": "short"}
+                tui = envman.EnvmanTUI(mock.MagicMock(), store)
+                tui.prompt_name = mock.MagicMock(return_value=new_name)
+
+                with mock.patch.object(store, "save") as save:
+                    tui.rename()
+
+                save.assert_not_called()
+                self.assertEqual(store.values, {"PUBLIC_VALUE": "short"})
+                self.assertIn("six", tui.status)
 
 
     def test_tui_rejects_sensitivity_downgrading_rename(self) -> None:

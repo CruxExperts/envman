@@ -59,12 +59,8 @@ DETAIL_MIN_ROWS = 2
 
 
 def catalog_layout(height: int) -> tuple[int, int, int]:
-    """Return visible rows, centered first row, and detail rows for either catalog."""
-    available_rows = max(0, height - 5 - LIST_FIRST_ROW)
-    visible_rows = min(10, max(1, available_rows - DETAIL_MIN_ROWS - 1))
-    group_rows = visible_rows + 1 + DETAIL_MIN_ROWS
-    top_padding = max(0, (available_rows - group_rows) // 2)
-    return visible_rows, LIST_FIRST_ROW + top_padding, DETAIL_MIN_ROWS
+    """Return the full catalog capacity between the fixed chrome rows."""
+    return max(1, height - 14), LIST_FIRST_ROW, DETAIL_MIN_ROWS
 
 
 def draw_catalog_controls(
@@ -172,7 +168,7 @@ def draw_wrapped_segments(
 
 SECRET_NAME_PATTERN = re.compile(
     r"(?:API[_-]?(?:KEY|SECRET)|SECRET|TOKEN|PASSWORD|PASS(?:WORD)?|"
-    r"CREDENTIAL|PRIVATE[_-]?KEY|ENCRYPT(?:ION|ED)?)",
+    r"CREDENTIAL|PRIVATE[_-]?KEY|ENCRYPT(?:ION|ED)?|(?:^|_)KEY(?:_|$))",
     re.IGNORECASE,
 )
 
@@ -406,6 +402,8 @@ def validate_value(value: str) -> None:
 def validate_assignment(name: str, value: str) -> None:
     validate_name(name)
     validate_value(value)
+    if is_secret_value(name, value) and len(value) < 6:
+        raise StoreError("Secret values must be at least six characters long.")
     if len(name) + 1 + len(value.encode("utf-8")) > MAX_ENVIRONMENT_ENTRY_BYTES:
         raise StoreError(
             f"{name} and its value exceed this system's {MAX_ENVIRONMENT_ENTRY_BYTES}-byte environment-entry limit.",
@@ -432,12 +430,24 @@ def is_path_name(name: str) -> bool:
     return "PATH" in name.upper()
 
 
+def secret_edge_length(value: str) -> int:
+    """Return the number of visible characters at each edge of a secret."""
+    if len(value) < 6:
+        return 0
+    if len(value) < 10:
+        return 1
+    if len(value) < 16:
+        return 2
+    return 4
+
+
 def mask_value(value: str) -> str:
     if not value:
         return "(empty)"
-    if len(value) <= 8:
+    edge = secret_edge_length(value)
+    if edge == 0:
         return "*" * len(value)
-    return f"{value[:4]}****{value[-4:]}"
+    return f"{value[:edge]}{'*' * (len(value) - (edge * 2))}{value[-edge:]}"
 
 
 def is_secret_value(name: str, value: str) -> bool:
@@ -457,7 +467,8 @@ def is_secret_value(name: str, value: str) -> bool:
 def sortable_value(name: str, value: str) -> str:
     if value in VISIBLE_SECRET_PLACEHOLDERS or not is_secret_value(name, value):
         return value
-    return "" if len(value) <= 8 else f"{value[:4]}{value[-4:]}"
+    edge = secret_edge_length(value)
+    return f"{value[:edge]}{value[-edge:]}" if edge else ""
 
 
 def display_value(name: str, value: str) -> str:
@@ -475,6 +486,7 @@ def truncate_for_display(value: str, width: int) -> str:
 
 
 def validate_rename_sensitivity(old_name: str, new_name: str, value: str) -> None:
+    validate_assignment(new_name, value)
     if is_secret_value(old_name, value) and not is_secret_value(new_name, value):
         raise StoreError(
             "Cannot rename a sensitive variable to a name that would expose its value.",
@@ -947,11 +959,12 @@ class EnvmanTUI:
         self.store = store
         self.colors_enabled = colors_enabled
         self.selected = 0
+        self.selected_names: set[str] = set()
         self.scroll_offset = 0
         self.sort_mode = "name_asc"
         self.filter_scope = "both"
         self.filter_pattern = ""
-        self.status = "Ready. Create a variable with A."
+        self.status = "Ready. Space selects; A creates a variable."
         self.status_attribute = curses.A_REVERSE | curses.A_BOLD if colors_enabled else curses.A_NORMAL
         self.name_attribute = curses.A_BOLD
         self.value_attribute = curses.A_NORMAL
@@ -994,7 +1007,6 @@ class EnvmanTUI:
             self.pattern_attribute = self.value_attribute
         except curses.error:
             pass
-
     def catalog_names(self) -> list[str]:
         pattern = self.filter_pattern.casefold()
         names = [
@@ -1010,14 +1022,17 @@ class EnvmanTUI:
             )
         ]
         if self.sort_mode == "name_asc":
-            return sorted(names)
-        if self.sort_mode == "name_desc":
-            return sorted(names, reverse=True)
-        return sorted(
-            names,
-            key=lambda name: (sortable_value(name, self.store.values[name]).casefold(), name),
-            reverse=self.sort_mode == "value_desc",
-        )
+            names = sorted(names)
+        elif self.sort_mode == "name_desc":
+            names = sorted(names, reverse=True)
+        else:
+            names = sorted(
+                names,
+                key=lambda name: (sortable_value(name, self.store.values[name]).casefold(), name),
+                reverse=self.sort_mode == "value_desc",
+            )
+        self.selected_names.intersection_update(names)
+        return names
 
     def catalog_row_limit(self, height: int) -> int:
         return catalog_layout(height)[0]
@@ -1132,11 +1147,11 @@ class EnvmanTUI:
             CATALOG_HINT_ROW,
             width,
             (
-                (f"{len(names)} shown · up to 10 indexed rows · ", curses.A_DIM),
-                ("1-0", self.number_attribute | curses.A_BOLD),
-                (" selects · ", curses.A_DIM),
+                (f"{len(names)} shown · ", curses.A_DIM),
+                ("Space", self.number_attribute | curses.A_BOLD),
+                (" toggles · ", curses.A_DIM),
                 ("Up/Down", self.number_attribute | curses.A_BOLD),
-                (" scroll", curses.A_DIM),
+                (" moves", curses.A_DIM),
             ),
         )
         self.screen.hline(LIST_DIVIDER_ROW, 2, horizontal_line, width - 4)
@@ -1146,22 +1161,21 @@ class EnvmanTUI:
                 start=self.scroll_offset,
             ):
                 row = first_row + index - self.scroll_offset
-                selected_attribute = self.selected_attribute if index == self.selected else curses.A_NORMAL
+                focused = index == self.selected
+                row_attribute = self.selected_attribute if focused else curses.A_NORMAL
+                marker = "[*]" if name in self.selected_names else "[ ]"
                 preview = display_value(name, self.store.values[name])
-                visible_number = index - self.scroll_offset + 1
-                number_text = f"{'0' if visible_number == 10 else visible_number:>2}"
-                column = 4
-                remaining = width - 8
-                text_capacity = remaining - len(number_text) - 2
+                text_capacity = max(1, width - 10)
                 name_text = truncate_for_display(name, max(3, text_capacity // 2))
                 value_text = truncate_for_display(preview, max(0, text_capacity - len(name_text) - 3))
+                column = 4
+                remaining = width - 8
                 for text, attribute in (
-                    (number_text[:-1], selected_attribute),
-                    (number_text[-1], self.number_attribute | selected_attribute),
-                    (". ", selected_attribute),
-                    (name_text, self.name_attribute | selected_attribute),
-                    (" = ", curses.A_DIM | selected_attribute),
-                    (value_text, self.value_attribute | selected_attribute),
+                    (marker, self.number_attribute | row_attribute),
+                    (" ", row_attribute),
+                    (name_text, self.name_attribute | row_attribute),
+                    (" = ", curses.A_DIM | row_attribute),
+                    (value_text, self.value_attribute | row_attribute),
                 ):
                     if remaining <= 0:
                         break
@@ -1188,8 +1202,6 @@ class EnvmanTUI:
                 ("C", "opy"),
                 ("R", "ename"),
                 ("D", "elete"),
-                ("I", "mport"),
-                ("J", "mport Backup"),
             ),
             key_attribute=self.number_attribute | curses.A_BOLD,
             label_attribute=curses.A_DIM,
@@ -1201,16 +1213,17 @@ class EnvmanTUI:
             width,
             (
                 ("B", "ackup"),
+                ("I", "mport"),
+                ("J", "SON import"),
                 ("O", "rder"),
                 ("F", "ilter"),
                 ("M", "ode"),
-                ("1-0", "select"),
                 ("[/]", "view"),
                 ("Esc/Q", "reload"),
             ),
             key_attribute=self.number_attribute | curses.A_BOLD,
             label_attribute=curses.A_DIM,
-            separator=" ",
+            separator="",
         )
         status_width = width - 4
         self.screen.addnstr(
@@ -1248,14 +1261,18 @@ class EnvmanTUI:
                     self._set_cursor_visibility(True)
                     was_undersized = False
                 shown = "*" * len(value) if secret else "".join(value)
-                available = width - 4
+                available = max(1, width - 4)
                 label_prefix = truncate_for_display(f"{label} (Esc cancels): ", max(12, available // 2))
                 input_width = max(1, available - len(label_prefix))
                 visible_value = truncate_for_display(shown, input_width)
                 if len(shown) > input_width:
                     tail_width = max(0, input_width - 3)
                     visible_value = f"...{shown[-tail_width:] if tail_width else ''}"
-                self.screen.addnstr(height - 2, 2, f"{label_prefix}{visible_value}", available)
+                prompt_row = height - 2
+                self.screen.move(prompt_row, 0)
+                self.screen.clrtoeol()
+                self.screen.addnstr(prompt_row, 2, f"{label_prefix}{visible_value}", available)
+                self.screen.move(prompt_row, min(width - 1, 2 + len(label_prefix) + len(visible_value)))
                 self.screen.refresh()
                 key = self.screen.get_wch()
                 if key in ("\n", "\r", curses.KEY_ENTER):
@@ -1282,7 +1299,6 @@ class EnvmanTUI:
 
     def prompt_name(self, label: str) -> str | None:
         return self.prompt(label, variable_name=True)
-
     def confirm(self, question: str) -> bool:
         answer = self.prompt(f"{question} [y/N]")
         return answer is not None and answer.strip().lower() in {"y", "yes"}
@@ -1294,11 +1310,24 @@ class EnvmanTUI:
         else:
             self._clamp_catalog_selection(names)
         self.scroll_offset = 0
+        self.detail_offset = 0
 
     def current_name(self) -> str | None:
         names = self.catalog_names()
         self._clamp_catalog_selection(names)
         return names[self.selected] if names else None
+
+    def toggle_current(self) -> None:
+        name = self.current_name()
+        if name is None:
+            self.status = "No variables match the current filter."
+            return
+        if name in self.selected_names:
+            self.selected_names.remove(name)
+            self.status = f"{name} removed from the selection."
+        else:
+            self.selected_names.add(name)
+            self.status = f"{name} selected."
 
     def cycle_sort(self) -> None:
         current_name = self.current_name()
@@ -1331,14 +1360,6 @@ class EnvmanTUI:
             self.selected = min(max(0, self.selected + distance), len(names) - 1)
 
 
-    def select_visible_number(self, key: str) -> None:
-        names = self.catalog_names()
-        visible_rows = self.catalog_row_limit(self.screen.getmaxyx()[0])
-        self._ensure_visible(names, visible_rows)
-        visible_number = 10 if key == "0" else int(key)
-        index = self.scroll_offset + visible_number - 1
-        if visible_number <= min(10, visible_rows) and index < len(names):
-            self.selected = index
 
     def persist_change(
         self,
@@ -1346,12 +1367,15 @@ class EnvmanTUI:
         previous_selection: int,
         message: str,
         warnings: tuple[str, ...] = (),
+        previous_selected_names: set[str] | None = None,
     ) -> None:
         try:
             self.store.save()
         except StoreError as exc:
             self.store.values = previous_values
             self.selected = previous_selection
+            if previous_selected_names is not None:
+                self.selected_names = previous_selected_names
             self.status = f"Change was not saved: {exc}"
             return
         warning = f" Warning: {len(warnings)} configured path(s) do not exist yet." if warnings else ""
@@ -1427,30 +1451,60 @@ class EnvmanTUI:
         self.store.values[name] = value
         self.persist_change(previous_values, previous_selection, f"{name} updated" + ("; surrounding whitespace removed." if raw_value != value else "."), warnings)
 
+    def _selected_group_names(self) -> list[str]:
+        names = self.catalog_names()
+        selected = [name for name in names if name in self.selected_names]
+        if selected:
+            return selected
+        current = self.current_name()
+        return [current] if current is not None else []
+
     def copy_value(self) -> None:
-        name = self.current_name()
-        if name is None:
+        targets = self._selected_group_names()
+        if not targets:
             self.status = "Nothing to copy into."
             return
         while True:
-            raw_source_name = self.prompt_name(f"Copy value to {name} from")
+            raw_source_name = self.prompt_name(f"Copy value to {len(targets)} variable(s) from")
             if raw_source_name is None:
                 self.status = "Copy cancelled."
                 return
             source_name = normalize_name(raw_source_name)
             try:
                 validate_name(source_name)
-                value, warnings = prepare_copied_value(name, source_name, self.store.values)
+                prepared: dict[str, str] = {}
+                warnings: tuple[str, ...] = ()
+                credential_warnings: list[str] = []
+                for target in targets:
+                    value, target_warnings = prepare_copied_value(target, source_name, self.store.values)
+                    prepared[target] = value
+                    warnings += target_warnings
+                    warning = credential_value_warning(target, value)
+                    if warning is not None:
+                        credential_warnings.append(warning)
             except StoreError as exc:
                 self.status = str(exc)
                 return
-            warning = credential_value_warning(name, value)
-            if warning is None or self.prompt(f"{warning} Enter saves; Esc re-enters") is not None:
-                break
+            if credential_warnings:
+                warning_text = (
+                    credential_warnings[0]
+                    if len(credential_warnings) == 1
+                    else f"{len(credential_warnings)} targets have credential warnings."
+                )
+                if self.prompt(f"{warning_text} Enter saves; Esc re-enters") is None:
+                    continue
+            break
         previous_values = self.store.values.copy()
         previous_selection = self.selected
-        self.store.values[name] = value
-        self.persist_change(previous_values, previous_selection, f"{source_name} copied to {name}.", warnings)
+        previous_selected_names = self.selected_names.copy()
+        self.store.values.update(prepared)
+        self.persist_change(
+            previous_values,
+            previous_selection,
+            f"{source_name} copied to {len(targets)} variable(s).",
+            warnings,
+            previous_selected_names,
+        )
 
     def rename(self) -> None:
         old_name = self.current_name()
@@ -1477,23 +1531,45 @@ class EnvmanTUI:
             return
         previous_values = self.store.values.copy()
         previous_selection = self.selected
+        previous_selected_names = self.selected_names.copy()
         self.store.values[new_name] = self.store.values.pop(old_name)
+        if old_name in self.selected_names:
+            self.selected_names.remove(old_name)
+            self.selected_names.add(new_name)
         self._select_catalog_name(new_name)
-        self.persist_change(previous_values, previous_selection, f"{old_name} renamed to {new_name}" + ("; surrounding whitespace removed." if raw_name != new_name else "."))
+        self.persist_change(
+            previous_values,
+            previous_selection,
+            f"{old_name} renamed to {new_name}" + ("; surrounding whitespace removed." if raw_name != new_name else "."),
+            previous_selected_names=previous_selected_names,
+        )
 
     def delete(self) -> None:
-        name = self.current_name()
-        if name is None:
+        targets = self._selected_group_names()
+        if not targets:
             self.status = "Nothing to delete."
             return
-        if not self.confirm(f"Delete {name}?"):
+        label = f"{len(targets)} variable(s)" if len(targets) > 1 else targets[0]
+        if not self.confirm(f"Delete {label}?"):
             self.status = "Delete cancelled."
             return
         previous_values = self.store.values.copy()
         previous_selection = self.selected
-        del self.store.values[name]
-        self.selected = max(0, self.selected - 1)
-        self.persist_change(previous_values, previous_selection, f"{name} deleted.")
+        previous_selected_names = self.selected_names.copy()
+        for name in targets:
+            self.store.values.pop(name, None)
+        names = self.catalog_names()
+        self._ensure_visible(names, self.catalog_row_limit(self.screen.getmaxyx()[0]))
+        self._clamp_catalog_selection(self.catalog_names())
+        self.persist_change(
+            previous_values,
+            previous_selection,
+            f"Deleted {len(targets)} variable(s).",
+            previous_selected_names=previous_selected_names,
+        )
+    def backup_group(self) -> None:
+        self.catalog_names()
+        self.export_encrypted_backup()
 
     def import_environment(self) -> None:
         preview = EnvironmentImportTUI(self.screen, self.store, colors_enabled=self.colors_enabled)
@@ -1501,19 +1577,30 @@ class EnvmanTUI:
         if preview.applied:
             self._select_catalog_name(preview.last_name)
         self.status = preview.status
-
     def export_encrypted_backup(self) -> None:
+        ordered_names = self.catalog_names()
+        selected = set(self.selected_names)
+        values = (
+            {
+                name: self.store.values[name]
+                for name in ordered_names
+                if name in selected and name in self.store.values
+            }
+            if selected
+            else self.store.values
+        )
         raw_destination = self.prompt("Encrypted backup destination (empty uses envman timestamp)")
         if raw_destination is None:
             self.status = "Encrypted backup export cancelled."
             return
         try:
             destination = encrypted_backup_destination(raw_destination)
-            write_encrypted_backup(destination, self.store.values)
+            write_encrypted_backup(destination, values)
         except StoreError as exc:
             self.status = str(exc)
             return
-        self.status = f"Encrypted backup of {len(self.store.values)} variable(s) saved to {destination}."
+        scope = "selected " if selected else ""
+        self.status = f"Encrypted backup of {len(values)} {scope}variable(s) saved to {destination}."
 
     def import_encrypted_backup(self) -> None:
         raw_source = self.prompt("Encrypted backup path")
@@ -1555,6 +1642,8 @@ class EnvmanTUI:
                 self.add()
             elif key in ("e", "E", "\n", "\r", curses.KEY_ENTER):
                 self.edit()
+            elif key == " ":
+                self.toggle_current()
             elif key in ("c", "C"):
                 self.copy_value()
             elif key in ("r", "R"):
@@ -1570,12 +1659,9 @@ class EnvmanTUI:
             elif key in ("j", "J"):
                 self.import_encrypted_backup()
             elif key in ("b", "B"):
-                self.export_encrypted_backup()
+                self.backup_group()
             elif key in ("m", "M"):
                 self.cycle_filter_scope()
-            elif isinstance(key, str) and key in "1234567890":
-                self.select_visible_number(key)
-                self.detail_offset = 0
             elif key == curses.KEY_UP:
                 self.move_selection(-1)
                 self.detail_offset = 0
@@ -1690,6 +1776,7 @@ class EnvironmentImportTUI:
                 )
             )
         ]
+        self.selected_sources.intersection_update({candidate.source_name for candidate in candidates})
         if self.sort_mode == "name_asc":
             return sorted(candidates, key=lambda candidate: (self.display_name(candidate), candidate.source_name))
         if self.sort_mode == "name_desc":
@@ -1739,15 +1826,6 @@ class EnvironmentImportTUI:
             self.selected = min(max(0, self.selected + distance), len(candidates) - 1)
             self.detail_offset = 0
 
-    def select_visible_number(self, key: str) -> None:
-        candidates = self.catalog_candidates()
-        visible_rows = self.catalog_row_limit(self.screen.getmaxyx()[0])
-        self._ensure_visible(candidates, visible_rows)
-        visible_number = 10 if key == "0" else int(key)
-        index = self.scroll_offset + visible_number - 1
-        if visible_number <= min(10, visible_rows) and index < len(candidates):
-            self.selected = index
-            self.detail_offset = 0
 
     def toggle_current(self) -> None:
         candidate = self.current_candidate()
@@ -1915,11 +1993,11 @@ class EnvironmentImportTUI:
             CATALOG_HINT_ROW,
             width,
             (
-                (f"{len(candidates)} shown · up to 10 indexed rows · ", curses.A_DIM),
+                (f"{len(candidates)} shown · ", curses.A_DIM),
                 ("Space", self.number_attribute | curses.A_BOLD),
-                (" toggle · ", curses.A_DIM),
+                (" toggles · ", curses.A_DIM),
                 ("A", self.number_attribute | curses.A_BOLD),
-                (" all shown · ", curses.A_DIM),
+                (" selects all shown · ", curses.A_DIM),
                 ("Enter", self.number_attribute | curses.A_BOLD),
                 (" imports", curses.A_DIM),
             ),
@@ -1930,27 +2008,24 @@ class EnvironmentImportTUI:
             start=self.scroll_offset,
         ):
             row = first_row + index - self.scroll_offset
-            selected_attribute = self.selected_attribute if index == self.selected else curses.A_NORMAL
-            visible_number = index - self.scroll_offset + 1
-            number_text = f"{'0' if visible_number == 10 else visible_number:>2}"
-            marker = "[*] " if candidate.source_name in self.selected_sources else "[ ] "
+            focused = index == self.selected
+            row_attribute = self.selected_attribute if focused else curses.A_NORMAL
+            marker = "[*]" if candidate.source_name in self.selected_sources else "[ ]"
             state_marker = "! " if candidate.state == "collision" else ""
             value = self.display_candidate_value(candidate)
             column = 4
             remaining = width - 8
-            text_capacity = remaining - len(number_text) - 2 - len(marker) - len(state_marker)
+            text_capacity = max(1, remaining - len(marker) - len(state_marker) - 1)
             name_text = truncate_for_display(self.display_name(candidate), max(3, text_capacity // 2))
             value_text = truncate_for_display(value, max(0, text_capacity - len(name_text) - 3))
             name_attribute = self.collision_attribute if candidate.state in {"collision", "invalid"} else self.source_attribute
             for text, attribute in (
-                (number_text[:-1], selected_attribute),
-                (number_text[-1], self.number_attribute | selected_attribute),
-                (". ", selected_attribute),
-                (marker, self.source_attribute | selected_attribute),
-                (state_marker, self.collision_attribute | selected_attribute),
-                (name_text, name_attribute | selected_attribute),
-                (" = ", curses.A_DIM | selected_attribute),
-                (value_text, self.value_attribute | selected_attribute),
+                (marker, self.source_attribute | row_attribute),
+                (" ", row_attribute),
+                (state_marker, self.collision_attribute | row_attribute),
+                (name_text, name_attribute | row_attribute),
+                (" = ", curses.A_DIM | row_attribute),
+                (value_text, self.value_attribute | row_attribute),
             ):
                 if remaining <= 0:
                     break
@@ -1967,9 +2042,9 @@ class EnvironmentImportTUI:
             height - 4,
             width,
             (
-                ("Space", " Toggle"),
+                ("Space", "Toggle"),
                 ("A", "ll"),
-                ("Enter", " Import"),
+                ("Enter", "Import"),
                 ("O", "rder"),
                 ("F", "ilter"),
                 ("M", "ode"),
@@ -1983,13 +2058,12 @@ class EnvironmentImportTUI:
             height - 3,
             width,
             (
-                ("1-0", "select"),
                 ("[/]", "view"),
                 ("Esc", "back"),
             ),
             key_attribute=self.number_attribute | curses.A_BOLD,
             label_attribute=curses.A_DIM,
-            separator=" ",
+            separator="",
         )
         status_width = width - 4
         self.screen.addnstr(
@@ -2054,8 +2128,6 @@ class EnvironmentImportTUI:
                 self.set_filter()
             elif key in ("m", "M"):
                 self.cycle_filter_scope()
-            elif isinstance(key, str) and key in "1234567890":
-                self.select_visible_number(key)
             elif key == curses.KEY_UP:
                 self.move_selection(-1)
             elif key == curses.KEY_DOWN:
