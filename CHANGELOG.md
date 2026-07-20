@@ -2,6 +2,12 @@
 
 All notable changes are documented here.
 
+## [0.1.4] - 2026-07-20
+
+### Fixed
+
+- Correct installer receipt provenance so receipts created by the changed installer record `installer_version: 0.1.4`.
+
 ## [0.1.3] - 2026-07-20
 
 ### Fixed
