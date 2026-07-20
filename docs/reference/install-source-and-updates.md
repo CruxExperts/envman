@@ -16,7 +16,8 @@ The installer accepts a manifest only when all of these checks pass:
 3. The wheel and `runtime-constraints.txt` assets have bounded sizes, matching SHA-256 digests, matching byte lengths, safe basenames, and the expected filenames.
 4. The constraints file contains only exact package pins and includes `cryptography`. The wheel is inspected as a ZIP without extracting untrusted members, and its Envman metadata must match the manifest version.
 5. Downloads use HTTPS and accept only GitHub-controlled hosts and redirects. Credentials and fragments are rejected.
-6. The host is Linux x86_64 with CPython `>=3.12,<3.13`, and the invoked `uv` reports a version in `>=0.11,<0.12` (use `uv 0.11.21` for Envman 0.1.2).
+6. The host is Linux x86_64 with CPython `>=3.12,<3.13`, and the invoked `uv` reports a version in `>=0.11,<0.12` (use `uv 0.11.21` for Envman 0.1.3).
+7. After installation, the command path is resolved from `uv tool dir --bin` and that exact executable must report the manifest version. Verification never falls back to a different `envman` found through `PATH`.
 
 The installer trusts the local `uv` executable and selected Python runtime, GitHub release hosting and its controlled asset redirects, and PyPI over TLS for the exact packages in the verified constraints projection. It does not claim a hermetic dependency install. `--no-build` prevents source builds while installing the verified wheel.
 

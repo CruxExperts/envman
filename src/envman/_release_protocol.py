@@ -400,7 +400,15 @@ def _install_argv(wheel: Path, constraints: Path, *, uv_executable: str = "uv") 
     return [uv_executable, "tool", "install", "--python", "3.12", "--force", "--no-build", "--constraints", str(constraints), str(wheel)]
 
 
-def _verify_command(version: str, *, runner: Runner, executable: str = PRODUCT) -> None:
+def _verify_command(version: str, *, runner: Runner, uv_executable: str) -> None:
+    try:
+        bin_output = runner([uv_executable, "tool", "dir", "--bin"])
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ReleaseProtocolError("Installed Envman command location could not be determined.") from exc
+    bin_lines = [line.strip() for line in bin_output.splitlines() if line.strip()]
+    if len(bin_lines) != 1 or not Path(bin_lines[0]).is_absolute():
+        raise ReleaseProtocolError("uv returned an invalid tool executable directory.")
+    executable = str(Path(bin_lines[0]) / PRODUCT)
     try:
         output = runner([executable, "--version"])
     except (OSError, subprocess.CalledProcessError) as exc:
@@ -413,7 +421,7 @@ def _receipt(manifest: ReleaseManifest, uv_version: str, now: Callable[[], datet
     return InstallReceipt(manifest.version, "github-release-wheel", REPOSITORY, manifest.manifest_url, manifest.wheel, manifest.constraints, INSTALLER_VERSION, uv_version, now().astimezone(UTC).isoformat().replace("+00:00", "Z"))
 
 
-def install_manifest(manifest: ReleaseManifest, *, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", command_executable: str = PRODUCT, now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> InstallReceipt:
+def install_manifest(manifest: ReleaseManifest, *, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> InstallReceipt:
     """Install one verified manifest, refusing to replace an unowned Envman tool."""
     uv_version = verify_runtime(runner=runner, uv_executable=uv_executable)
     receipt_file = receipt_path(state_root)
@@ -441,7 +449,7 @@ def install_manifest(manifest: ReleaseManifest, *, transport: Transport = defaul
         try:
             runner(_install_argv(wheel_path, constraints_path, uv_executable=uv_executable))
             _verify_distribution_metadata(manifest.version, runner=runner, uv_executable=uv_executable)
-            _verify_command(manifest.version, runner=runner, executable=command_executable)
+            _verify_command(manifest.version, runner=runner, uv_executable=uv_executable)
             result = _receipt(manifest, uv_version, now)
             write_receipt(result, receipt_file)
             return result
@@ -468,7 +476,7 @@ def load_manifest(url: str = LATEST_MANIFEST_URL, *, transport: Transport = defa
     return parse_manifest(transport(url, MANIFEST_LIMIT), manifest_url=url)
 
 
-def update(*, check_only: bool, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", command_executable: str = PRODUCT, now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> dict[str, object]:
+def update(*, check_only: bool, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> dict[str, object]:
     receipt = read_receipt(receipt_path(state_root))
     if receipt.provider != "github-release-wheel":
         raise ReleaseProtocolError("Install receipt provider is not supported for updates.")
@@ -481,7 +489,7 @@ def update(*, check_only: bool, transport: Transport = default_transport, runner
         return {"schema": "envman.update-result", "schema_version": 1, "status": "current", "installed_version": receipt.installed_version, "available_version": manifest.version}
     if check_only:
         return {"schema": "envman.update-result", "schema_version": 1, "status": "update-available", "installed_version": receipt.installed_version, "available_version": manifest.version}
-    installed = install_manifest(manifest, transport=transport, runner=runner, state_root=state_root, uv_executable=uv_executable, command_executable=command_executable, now=now)
+    installed = install_manifest(manifest, transport=transport, runner=runner, state_root=state_root, uv_executable=uv_executable, now=now)
     return {"schema": "envman.update-result", "schema_version": 1, "status": "updated", "installed_version": receipt.installed_version, "available_version": installed.installed_version}
 
 

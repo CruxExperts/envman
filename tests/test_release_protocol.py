@@ -122,7 +122,7 @@ class ReleaseProtocolTests(unittest.TestCase):
             with self.assertRaises(release.ReleaseProtocolError):
                 release.update(check_only=True, transport=lambda url, limit: older if url == "https://fixture.test/manifest" else transport(url, limit), state_root=state)
 
-    def test_install_uses_verified_assets_and_exact_uv_argv(self) -> None:
+    def test_install_uses_verified_assets_and_command_from_uv_tool_bin(self) -> None:
         encoded, bodies = manifest_bytes()
         manifest = release.parse_manifest(encoded, manifest_url="https://fixture.test/manifest")
         calls: list[list[str]] = []
@@ -138,8 +138,12 @@ class ReleaseProtocolTests(unittest.TestCase):
             if argv[:3] == ["uv", "tool", "install"]:
                 installed = True
                 return ""
-            if argv == ["envman", "--version"]:
+            if argv == ["uv", "tool", "dir", "--bin"]:
+                return "/isolated/uv-bin\n"
+            if argv == ["/isolated/uv-bin/envman", "--version"]:
                 return "envman 0.1.0"
+            if argv == ["envman", "--version"]:
+                return "envman 0.0.9"
             return ""
 
         with tempfile.TemporaryDirectory() as temporary:
@@ -152,6 +156,8 @@ class ReleaseProtocolTests(unittest.TestCase):
             self.assertEqual(receipt.installed_version, "0.1.0")
             install = next(call for call in calls if call[:3] == ["uv", "tool", "install"])
             self.assertEqual(install[:8], ["uv", "tool", "install", "--python", "3.12", "--force", "--no-build", "--constraints"])
+            self.assertIn(["/isolated/uv-bin/envman", "--version"], calls)
+            self.assertNotIn(["envman", "--version"], calls)
 
     def test_install_refuses_unowned_existing_tool(self) -> None:
         encoded, bodies = manifest_bytes()

@@ -42,8 +42,8 @@ The highest explicit or default intent wins across the release batch. A `BREAKIN
 After updating `VERSION`, the README, and the changelog, create a version-matching tag and push it only after the local checks pass:
 
 ```bash
-git tag v0.1.2 -m "Release v0.1.2"
-git push origin v0.1.2
+git tag v0.1.3 -m "Release v0.1.3"
+git push origin v0.1.3
 ```
 
 The release workflow runs only for tags matching `v[0-9]*`. Its source gate requires the tag name without `v` to equal `VERSION` and the tagged commit to be an ancestor of `origin/main`. It then runs locked tests, `version.py check`, the documentation-index check, and installer rendering parity.

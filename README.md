@@ -1,5 +1,5 @@
 # Envman
-**Version:** 0.1.2
+**Version:** 0.1.3
 
 Envman manages durable, per-user environment variables on Linux. Use the terminal UI to inspect and edit them, or the CLI to validate and automate changes without putting values in shell startup files by hand.
 
@@ -14,14 +14,18 @@ The release installer checks the GitHub manifest, immutable asset URLs, sizes, S
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
+ENVMAN="$(uv tool dir --bin)/envman"
+"$ENVMAN" --version
 ```
 
 The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`. It does not silently change installation providers when an installation receipt is missing or invalid.
 
+The resolved executable command works even when the uv tool directory is not yet in `PATH`; after adding that directory to `PATH`, invoke it as `envman`.
+
 ## First run
 
 ```bash
-envman
+"$ENVMAN"
 ```
 
 With no command, Envman opens the TUI. A new store starts empty; press `A` to add a variable. The catalog uses the available terminal height and requires at least 80 columns by 18 rows. Press `Q` or `Esc` to leave the catalog and start a child shell with the managed environment.
@@ -29,8 +33,8 @@ With no command, Envman opens the TUI. A new store starts empty; press `A` to ad
 The CLI is available when an interactive terminal is not appropriate:
 
 ```bash
-envman set PROJECT_URL --value https://example.test
-envman list --json
+"$ENVMAN" set PROJECT_URL --value https://example.test
+"$ENVMAN" list --json
 ```
 
 ## TUI controls

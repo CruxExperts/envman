@@ -5,15 +5,18 @@ title: Install Envman
 
 # Install Envman
 
-Envman 0.1.2 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`; use `uv 0.11.21` for this release. Run the public installer through `uv`; do not pipe the downloaded file to a shell.
+Envman 0.1.3 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`; use `uv 0.11.21` for this release. Run the public installer through `uv`; do not pipe the downloaded file to a shell.
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
-envman --version
-envman
+ENVMAN="$(uv tool dir --bin)/envman"
+"$ENVMAN" --version
+"$ENVMAN"
 ```
 
-The installer downloads the bounded release manifest, accepts only the trusted `CruxExperts/envman` GitHub release asset URLs, checks asset sizes and SHA-256 hashes, validates the pinned runtime constraints and wheel metadata, checks the host and `uv` versions, and installs only the verified local wheel with `uv tool install --no-build`. If an Envman tool is already present, replacement requires a valid Envman install receipt.
+The installer downloads the bounded release manifest, accepts only the trusted `CruxExperts/envman` GitHub release asset URLs, checks asset sizes and SHA-256 hashes, validates the pinned runtime constraints and wheel metadata, checks the host and `uv` versions, and installs only the verified local wheel with `uv tool install --no-build`. It resolves the installed executable from `uv tool dir --bin`, so verification does not depend on the tool directory already being present in `PATH`. If an Envman tool is already present, replacement requires a valid Envman install receipt.
+
+The resolved executable command works before the uv tool directory is in `PATH`. After adding the directory reported by `uv tool dir --bin` to `PATH`, use the shorter `envman` command.
 
 ## Update
 

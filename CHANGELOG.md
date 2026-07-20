@@ -2,6 +2,12 @@
 
 All notable changes are documented here.
 
+## [0.1.3] - 2026-07-20
+
+### Fixed
+
+- Resolve the installed command through `uv tool dir --bin` before version verification, preventing a valid installation from being rolled back when the uv tool directory is absent from `PATH`.
+
 ## [0.1.2] - 2026-07-20
 
 ### Changed
