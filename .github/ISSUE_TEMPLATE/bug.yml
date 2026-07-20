@@ -5,18 +5,29 @@ labels: [bug]
 body:
   - type: textarea
     attributes:
-      label: What happened?
-      description: Include sanitized steps, expected behavior, and actual behavior. Never include variable values or credentials.
+      label: Reproduction
+      description: Describe the command or TUI actions, inputs without values, and the smallest reproducible steps. Never include credentials or environment values.
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected and actual behavior
+      description: State what you expected and what happened instead. Include sanitized error output when useful.
     validations:
       required: true
   - type: input
     attributes:
       label: Envman version
+      placeholder: "`envman --version`"
     validations:
       required: true
   - type: textarea
     attributes:
       label: Environment
-      description: Linux distribution, Python version, uv version, and sanitized command output.
+      description: Include Linux distribution, Python version, uv version, and sanitized command output. Remove paths, hostnames, and variable values.
     validations:
       required: true

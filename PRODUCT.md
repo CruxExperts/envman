@@ -1,33 +1,27 @@
 # Product
 
-## Register
+## Purpose
 
-brand
+Envman manages durable, per-user environment variables without requiring users to edit shell startup files by hand. The terminal UI makes the managed set inspectable. The CLI supports validation, JSON output, imports, exports, and automation.
 
 ## Users
 
-Terminal-first developers and operators who work across shells and machines. They need to discover, validate, transfer, and load a manageable set of environment variables without turning shell history, chat logs, or ad hoc files into a credential graveyard.
+Envman is for developers and operators who work across shells or machines and need a small, explicit set of URLs, paths, settings, and credentials. It is not a general-purpose secret vault or a replacement for a shell, operating-system credential store, or deployment secret manager.
 
-## Product Purpose
+## Supported scope
 
-Envman provides a focused terminal UI and scriptable CLI for durable, per-user environment variables. It makes the managed state inspectable, validates common URL/path/credential mistakes before persistence, and moves values between machines through encrypted backups.
+Release installation currently supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`. The managed store is per user. A save writes the Envman configuration file and maintains marked loaders for supported POSIX shells and Fish; when replacing an existing file, Envman creates a local mode-`0600` snapshot.
 
-## Brand Personality
+Sensitive names and password-bearing URLs are masked in ordinary output. Names ending in `_API_KEY_ENV` refer to another managed variable. Encrypted backups use `ENVMAN_BACKUP_KEY`; the on-disk configuration and automatic local snapshots are not encrypted.
 
-Quiet, precise, watchful. It should feel like a well-maintained operations console at the end of a long shift: informative without theatrics, confident without secrecy theater.
+## Product principles
 
-## Anti-references
+- Show the current state before asking for an action.
+- Make every interactive operation available through a scriptable command where it is useful.
+- Keep selection, validation, masking, and persistence behavior explicit.
+- Separate masking, file permissions, encrypted export, and installer verification; none is a promise of complete secrecy.
+- Prefer a quiet terminal surface that remains usable without color.
 
-Avoid neon cyberpunk, faux terminal decoration, glassmorphism, generic SaaS gradients, cheerful dashboard cards, and security-product fear copy. Do not present a fabricated terminal screenshot as proof of an interface.
+## Out of scope
 
-## Design Principles
-
-- Make the system state legible before asking for action.
-- Give operators a truthful boundary around what is encrypted, masked, and trusted.
-- Keep automation composable: every interactive workflow has a scriptable counterpart.
-- Use restraint to support concentration, not to hide complexity.
-- Treat accessibility and low-distraction operation as product quality.
-
-## Accessibility & Inclusion
-
-The public site targets WCAG 2.2 AA, including clear landmarks, keyboard navigation, visible focus, reduced motion, non-color status cues, responsive reading widths, and 44px interactive targets.
+Envman does not provide hosted synchronization, team access control, key rotation, remote secret storage, or a hermetic dependency installation. Users remain responsible for the local shell, `uv`, Python runtime, release hosting, dependency indexes, and operating-system permissions.

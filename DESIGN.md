@@ -1,29 +1,29 @@
 # Design
 
-## Intent
+## Surface
 
-Envman’s public surface is a late-night terminal control room: quiet instrument lights, dense but legible readings, and one intentional accent at a time. The physical scene is an operator reviewing machine state in a dim workspace, where glare and ornamental noise would make work harder.
+Envman has two public interaction surfaces: a curses TUI for deliberate local editing and a CLI for repeatable commands. Both operate on the same per-user managed store and apply the same name, value, URL, path, and sensitive-value validation.
 
-## Color Tokens
+## TUI layout
 
-- Background: `oklch(0.11 0 0)`
-- Surface: `oklch(0.17 0.015 200)`
-- Ink: `oklch(0.94 0.01 200)`
-- Muted: `oklch(0.72 0.02 200)`
-- Primary sky: `oklch(0.75 0.08 200)`
-- Magenta accent: `oklch(0.68 0.18 330)`
-- Success: `oklch(0.78 0.15 145)`
-- Warning: `oklch(0.82 0.15 80)`
-- Danger: `oklch(0.66 0.20 25)`
+The catalog is full-height and index-free. Its fixed chrome contains the title, managed-file location, sort and filter controls, a status line, and a detail area; the variable list uses the remaining terminal height. The minimum supported surface is 80 columns by 18 rows.
 
-## Typography
+Each row shows a selection marker, name, and display value. The focused row is visually distinct. Sensitive values are masked, and the selected detail view uses the same display policy as the catalog. A colorless launch uses text and weight rather than color alone.
 
-Use the system UI sans-serif stack for prose and the system monospace stack for headings, values, and commands. No remote font or image dependency is permitted. Headings use clear weight and scale rather than compressed tracking; body measure remains below 75ch.
+## TUI interaction
 
-## Layout and Components
+`Up` and `Down` move focus. `Space` toggles membership in the current multi-selection. `C`, `D`, and `B` apply copy, delete, and encrypted-backup actions to the selected group; with no selection they apply to the focused variable or, for backup, to all managed variables. `A`, `E`/`Enter`, and `R` add, edit, and rename. `O`, `F`, and `M` control ordering and filtering. `I` imports from the process environment, and `J` imports from an encrypted backup.
 
-The landing page uses a bordered instrument-panel composition, strong semantic hierarchy, and deliberate asymmetry in the hero. Controls are solid, high-contrast actions with visible focus. Status labels include text and shape, never color alone. Motion is limited to a short, optional status sweep and is removed under `prefers-reduced-motion`.
+Prompts occupy the status row and clear that row before each redraw. `Q` and `Esc` leave the catalog; the normal no-command launch then starts a child shell with the managed environment.
 
-## Accessibility
+## Visual rules
 
-Text meets a 4.5:1 minimum contrast ratio, controls meet 44px targets, the skip link is visible on focus, and the 390px layout has no horizontal overflow.
+- Keep names and values visibly distinct without exposing sensitive values.
+- Use selection markers and text labels so color is never the only state cue.
+- Keep prompts, warnings, and save results in the status row rather than overwriting catalog content.
+- Keep controls compact enough for the minimum terminal size and clip long values instead of wrapping list rows.
+- Keep a colorless path (`envman --nocolor`) usable for terminals that do not support curses color pairs.
+
+## Boundary
+
+The TUI is an operator surface, not an encrypted vault. File permissions, process-environment handling, encrypted backup export, and release verification are separate controls documented in [the storage reference](docs/reference/storage-and-shell-loading.md), [the backup guide](docs/guides/backups-and-migration.md), and [the installation reference](docs/reference/install-source-and-updates.md).

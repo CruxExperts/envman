@@ -3,3 +3,6 @@ contact_links:
   - name: Questions and ideas
     url: https://github.com/CruxExperts/envman/discussions
     about: Use GitHub Discussions for support and open-ended ideas.
+  - name: Security reports
+    url: https://github.com/CruxExperts/envman/security/advisories/new
+    about: Report suspected vulnerabilities privately. Do not open a public issue.

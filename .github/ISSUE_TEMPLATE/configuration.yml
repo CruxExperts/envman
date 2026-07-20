@@ -5,7 +5,13 @@ labels: [question]
 body:
   - type: textarea
     attributes:
-      label: Goal and current configuration
-      description: Provide sanitized configuration and commands. Do not include environment values, backup keys, or credentials.
+      label: Goal and current behavior
+      description: State what you are trying to do, the command or TUI action, and what happens. Do not include environment values, backup keys, or credentials.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Sanitized configuration and versions
+      description: Include relevant non-secret settings, Envman version, Linux distribution, Python version, uv version, and sanitized output. Remove private paths and hostnames.
     validations:
       required: true

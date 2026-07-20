@@ -1,59 +1,90 @@
 # Envman
+**Version:** 0.1.2
 
-**Version:** 0.1.1
+Envman manages durable, per-user environment variables on Linux. Use the terminal UI to inspect and edit them, or the CLI to validate and automate changes without putting values in shell startup files by hand.
 
-Envman is a portable terminal environment-variable manager for Linux. One variable is easy; dozens of credentials, URLs, paths, and settings across shells and machines become hard to find, validate, and move without leaks. Envman keeps the managed set durable, visible, and portable.
-
-- Terminal UI for browsing, filtering, editing, importing, and validating variables.
-- Scriptable CLI with structured JSON output and safe masking by default.
-- Authenticated encrypted backup/import envelopes for machine-to-machine migration.
-- Release installer that verifies a GitHub manifest, hashes, wheel metadata, compatibility, and pinned runtime constraints before installation.
+- Linux x86_64 releases for CPython 3.12 and `uv >=0.11,<0.12`
+- A verified GitHub-release installer and receipt-directed updates
+- A curses TUI and a scriptable CLI with JSON output
+- Encrypted backup export and selective import
 
 ## Install
 
-Requires Linux x86_64, CPython 3.12, and `uv >=0.11,<0.12`.
+The release installer checks the GitHub manifest, immutable asset URLs, sizes, SHA-256 hashes, wheel metadata, runtime constraints, and the local runtime before it installs the wheel.
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
+```
+
+The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`. It does not silently change installation providers when an installation receipt is missing or invalid.
+
+## First run
+
+```bash
 envman
 ```
 
-Check or apply a verified update after installation:
+With no command, Envman opens the TUI. A new store starts empty; press `A` to add a variable. The catalog uses the available terminal height and requires at least 80 columns by 18 rows. Press `Q` or `Esc` to leave the catalog and start a child shell with the managed environment.
+
+The CLI is available when an interactive terminal is not appropriate:
+
+```bash
+envman set PROJECT_URL --value https://example.test
+envman list --json
+```
+
+## TUI controls
+
+- `Up`/`Down` moves focus. `Space` toggles the focused variable, so several variables can be selected.
+- `C` copies one source value into every selected variable; with no selection it targets the focused variable.
+- `D` deletes the selected variables; with no selection it targets the focused variable.
+- `B` writes an encrypted backup of the selected variables, or all managed variables when nothing is selected.
+- `A` adds, `E` or `Enter` edits, and `R` renames the focused variable.
+- `O` changes ordering, `F` sets a filter, `M` changes filter scope, and `[`/`]` scrolls details.
+- `I` previews process-environment imports. `J` previews an encrypted-backup import.
+
+Use `envman --nocolor` when the terminal cannot use curses color pairs. The [TUI guide](docs/guides/tui.md) has the complete control reference.
+
+## Values and masking
+
+Names in the `KEY` class and names containing terms such as `TOKEN`, `PASSWORD`, `SECRET`, `CREDENTIAL`, or `PRIVATE_KEY` are treated as sensitive. Names ending in `_API_KEY_ENV` are references to managed variables, not secrets themselves. URLs that contain a password are also sensitive.
+
+Sensitive values are masked in normal TUI and CLI output. Values of six to nine characters show one character at each edge, values of 10 to 15 show two, and values of 16 or more show four. Sensitive values shorter than six characters are rejected. `--reveal` is an explicit request to print a sensitive value and should be used only by a trusted caller.
+
+## What Envman changes
+
+Envman stores assignments in `${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf` with private permissions. Saving also installs small, marked loaders for supported POSIX shells and Fish. Existing shell profile text is preserved, and comments or blank lines in the managed file remain in place. When an earlier file exists, writes create timestamped mode-`0600` local snapshots under the Envman backup directory.
+
+The configuration file is not an encrypted secret store. Protect the configuration directory and the process environment that loads it. Encrypted export is separate:
+
+```bash
+envman export backup.json
+envman import-backup backup.json --all --apply
+```
+
+Set `ENVMAN_BACKUP_KEY` through a secure mechanism before export or import. Do not put that password, a backup file, or managed values in source control.
+
+## Updates and removal
+
+Updates follow the provider recorded in the installation receipt:
 
 ```bash
 envman update --check
 envman update
 ```
 
-## Quick use
+An update refuses a downgrade. If a verified update fails, Envman restores the previous wheel and receipt. `uv tool uninstall envman` removes the installed command; the managed configuration, local backups, and shell loader files are separate and remain until you remove them. See [installation sources and updates](docs/reference/install-source-and-updates.md) for receipt recovery and intentional rollback.
 
-```bash
-envman set PROJECT_URL --value https://example.test
-envman list --json
-envman export backup.json
-envman import-backup backup.json --all --apply
-```
+## Documentation and support
 
-`ENVMAN_BACKUP_KEY` supplies the encrypted-backup password. Do not place it in the managed Envman file or commit it to source control.
-
-## Documentation
-
-- [Install, trust boundaries, and updates](docs/getting-started/installation.md)
-- [Terminal UI guide](docs/guides/tui.md)
+- [Installation](docs/getting-started/installation.md)
 - [CLI reference](docs/guides/cli.md)
-- [Encrypted backups and migration](docs/guides/backups-and-migration.md)
+- [TUI guide](docs/guides/tui.md)
+- [Backups and migration](docs/guides/backups-and-migration.md)
 - [Storage and shell loading](docs/reference/storage-and-shell-loading.md)
 - [Architecture](docs/development/architecture.md)
 - [Versioning and releases](docs/development/versioning-and-releases.md)
 
-The public site is [cruxexperts.github.io/envman](https://cruxexperts.github.io/envman/).
+Ask questions in [GitHub Discussions](https://github.com/CruxExperts/envman/discussions), report reproducible defects in [GitHub Issues](https://github.com/CruxExperts/envman/issues), and see [SUPPORT.md](SUPPORT.md) for sanitized diagnostics. Report suspected vulnerabilities through [private vulnerability reporting](https://github.com/CruxExperts/envman/security/advisories/new), not a public issue. Contributors should read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-## Security boundary
-
-Envman masks sensitive values in normal UI and CLI output, but it cannot protect values deliberately revealed to another process or terminal. Release installation trusts the locally installed `uv`, its selected Python runtime, GitHub release hosting, and PyPI for exact wheels resolved under verified runtime constraints. See [SECURITY.md](SECURITY.md).
-
-## Contributing and support
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md), open questions in [GitHub Discussions](https://github.com/CruxExperts/envman/discussions), and report security issues through [private vulnerability reporting](https://github.com/CruxExperts/envman/security/advisories/new).
-
-Copyright (c) 2026 CruxExperts contributors. Released under the [MIT License](LICENSE).
+Envman is released under the [MIT License](LICENSE).

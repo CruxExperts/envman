@@ -31,6 +31,22 @@ class VersionPolicyTests(unittest.TestCase):
         ):
             self.assertEqual(version_tool.plan()["target"], "0.1.1")
 
+    def test_unreleased_feature_with_empty_body_uses_patch_default_plan(self) -> None:
+        completed = version_tool.subprocess.CompletedProcess(
+            args=["git", "log"],
+            returncode=0,
+            stdout=f"{'a' * 40}\x1ffeat: repair release planning\x1f\x1e\n",
+            stderr="",
+        )
+        with (
+            patch.object(version_tool, "version", return_value="0.1.1"),
+            patch.object(version_tool, "latest_tag", return_value="v0.1.1"),
+            patch.object(version_tool.subprocess, "run", return_value=completed),
+        ):
+            result = version_tool.plan()
+        self.assertEqual(result["bump"], "patch")
+        self.assertEqual(result["target"], "0.1.2")
+
 
 if __name__ == "__main__":
     unittest.main()

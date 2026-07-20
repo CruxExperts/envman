@@ -21,7 +21,7 @@ def run_git(*args: str, allow_failure: bool = False) -> str:
     completed = subprocess.run(["git", *args], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if completed.returncode and not allow_failure:
         raise RuntimeError(completed.stderr.strip() or f"git {' '.join(args)} failed")
-    return completed.stdout.strip()
+    return completed.stdout.rstrip("\r\n")
 
 
 def version() -> str:

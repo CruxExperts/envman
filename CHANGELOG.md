@@ -2,16 +2,18 @@
 
 All notable changes are documented here.
 
-## [Unreleased]
+## [0.1.2] - 2026-07-20
 
 ### Changed
 
-- Let terminal catalogs use the available height and replace numeric row shortcuts with Space-based multi-selection for copy, delete, and encrypted backup actions.
-- Mask standalone and underscore-delimited `KEY` variables with length-aware visible edges, and reject secret values shorter than six characters.
+- Redesign the terminal catalog as a full-height, index-free list.
+- Replace numeric row shortcuts with Space-based multi-selection and grouped copy, delete, and encrypted-backup actions.
+- Classify standalone and underscore-delimited `KEY` names as secrets while excluding `_API_KEY_ENV` references; apply length-aware masking (`4+4` for values 16 or more characters, `2+2` for 10-15, and `1+1` for 6-9) and reject secret values shorter than six characters.
 
 ### Fixed
 
-- Clear the prompt line before redrawing edited values so shorter text no longer overlaps stale content.
+- Clear the prompt row before every redraw so edited values cannot overlap stale text.
+- Preserve Git unit and record separators while normalizing command output so an unreleased `feat:` commit receives the patch-default release plan.
 
 ## [0.1.1] - 2026-07-19
 

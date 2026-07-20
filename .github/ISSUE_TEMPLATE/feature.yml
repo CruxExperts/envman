@@ -5,11 +5,19 @@ labels: [enhancement]
 body:
   - type: textarea
     attributes:
-      label: Problem and proposed outcome
+      label: Problem
+      description: Describe the user problem, who encounters it, and the current workaround.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed outcome
+      description: Describe the behavior you want to change. Include command or TUI details when relevant.
     validations:
       required: true
   - type: textarea
     attributes:
       label: Alternatives considered
+      description: List alternatives or explain why none were suitable.
     validations:
       required: true

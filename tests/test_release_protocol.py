@@ -59,7 +59,8 @@ class ReleaseProtocolTests(unittest.TestCase):
     def test_installed_package_version_comes_from_distribution_metadata(self) -> None:
         from envman import cli
 
-        self.assertEqual(cli.app_version(), "0.1.1")
+        expected = (Path(__file__).parents[1] / "VERSION").read_text(encoding="utf-8").strip()
+        self.assertEqual(cli.app_version(), expected)
 
     def test_redirect_validation_allows_only_signed_asset_redirect_queries(self) -> None:
         release._redirect_host("https://github.com/CruxExperts/envman/releases/latest/download/release-manifest.json", initial=True)
