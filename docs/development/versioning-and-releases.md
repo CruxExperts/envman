@@ -39,17 +39,17 @@ The highest explicit or default intent wins across the release batch. A `BREAKIN
 
 ## Tag-gated GitHub workflow
 
-After updating `VERSION`, the README, and the changelog, create a version-matching tag and push it only after the local checks pass:
+After updating `VERSION`, the README, and the changelog, create a version-matching tag for the next release and push it only after the local checks pass:
 
 ```bash
-git tag v0.1.5 -m "Release v0.1.5"
-git push origin v0.1.5
+git tag vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
-The release workflow runs only for tags matching `v[0-9]*`. Its source gate requires the tag name without `v` to equal `VERSION` and the tagged commit to be an ancestor of `origin/main`. It then runs locked tests, `version.py check`, the documentation-index check, and installer rendering parity.
+The release workflow runs only for tags matching `v[0-9]*`. Its source gate requires the tag name without `v` to equal `VERSION` and the tagged commit to be an ancestor of `origin/main`. It then runs locked tests, `version.py check`, the documentation-index check, installer rendering parity, and agent-skill rendering parity.
 
 ## Build, assets, and publication
 
-The build job sets `SOURCE_DATE_EPOCH` to the tagged commit timestamp, runs `uv build --no-build-isolation` twice, and requires byte-identical wheel and source-archive outputs. `scripts/release_assets.py` writes exact transitive runtime pins from `uv.lock`, one release manifest, and `SHA256SUMS.txt`. The publish job creates a draft GitHub release from the matching `CHANGELOG.md` section, uploads the wheel, source archive, installer, manifest, constraints, and checksum list, attests the release assets, and then clears the draft state.
+The build job sets `SOURCE_DATE_EPOCH` to the tagged commit timestamp, runs `uv build --no-build-isolation` twice, and requires byte-identical wheel and source-archive outputs. `scripts/release_assets.py` copies the version-locked canonical agent skill, writes exact transitive runtime pins from `uv.lock`, a legacy `release-manifest.json`, a current `release-manifest-v2.json`, and `SHA256SUMS.txt`. The legacy manifest retains only wheel and constraint assets so immutable pre-skill installers can update; the v2 manifest is the default for the current installer and includes the verified skill asset. The publish job creates a draft GitHub release from the matching `CHANGELOG.md` section, uploads the wheel, source archive, installer, both manifests, constraints, agent skill, and checksum list, attests the release assets, and then clears the draft state.
 
 The canonical release protocol and rendered installer must carry the same `INSTALLER_VERSION` as `VERSION`, so the v0.1.5 installer writes `installer_version: 0.1.5` in every new receipt. The installer and `envman update` verify the manifest, asset URL and hash, wheel metadata, compatibility, and runtime constraints. Installation records a private receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; an update requires that receipt and refuses to switch providers or downgrade. A failed replacement attempts a rollback, so inspect the receipt and the installed command before declaring publication complete.

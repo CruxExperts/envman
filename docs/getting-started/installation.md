@@ -18,6 +18,21 @@ The installer downloads the bounded release manifest, accepts only the trusted `
 
 The resolved executable command works before the uv tool directory is in `PATH`. After adding the directory reported by `uv tool dir --bin` to `PATH`, use the shorter `envman` command.
 
+## Optional agent skill
+
+Releases that include the optional agent skill accept these installer flags:
+
+```bash
+uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py --install-skill
+uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py --no-install-skill
+```
+
+With neither flag, the installer prompts only when stdin and stdout are TTYs. An empty interactive answer defaults to **Yes**. Non-TTY execution never blocks and defaults to **No**, unless `--install-skill` explicitly forces installation.
+
+When enabled, the installer verifies the manifest's skill asset and installs it only within the selected repository. It walks upward from the current directory to the nearest `.git` directory; if none exists, it uses the current directory. It installs the same verified asset into each detected existing supported repo-local root: `.agents/skills`, `.codex/skills`, `.claude/skills`, `.cursor/skills`, `.gemini/skills`, and `.opencode/skills`; if no supported root exists, it creates `.agents/skills`. Within each root, the destination is `envman-environment-variable-manager/SKILL.md`. Symlinks and paths escaping the selected repository are rejected, and an unmarked existing skill is never replaced.
+
+The immutable `v0.1.5` release predates this optional skill asset; these options apply to a release that includes the asset.
+
 ## Update
 
 ```bash

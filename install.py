@@ -43,13 +43,19 @@ SCHEMA_VERSION = 1
 MANIFEST_LIMIT = 1 * 1024 * 1024
 CONSTRAINTS_LIMIT = 1 * 1024 * 1024
 WHEEL_LIMIT = 20 * 1024 * 1024
+SKILL_LIMIT = 1 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 30
-LATEST_MANIFEST_URL = "https://github.com/CruxExperts/envman/releases/latest/download/release-manifest.json"
+LATEST_MANIFEST_URL = "https://github.com/CruxExperts/envman/releases/latest/download/release-manifest-v2.json"
 INSTALLER_VERSION = "0.1.5"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UV_VERSION = re.compile(r"\buv\s+(\d+)\.(\d+)\.(\d+)\b", re.IGNORECASE)
 DIST_INFO_NAME = re.compile(r"^envman-[^-]+\.dist-info/METADATA$")
+SKILL_VERSION_MARKER = re.compile(r"(?m)^<!--\s*envman-skill-lock:\s*version=(?P<version>\d+\.\d+\.\d+)\s+source=src/envman/cli\.py\s*-->\s*$")
+SUPPORTED_SKILL_ROOTS = (".agents/skills", ".codex/skills", ".claude/skills", ".cursor/skills", ".gemini/skills", ".opencode/skills")
+SKILL_ASSET_FILENAME = "envman-environment-variable-manager-skill.md"
+SKILL_DIRECTORY_NAME = "envman-environment-variable-manager"
+SKILL_FILENAME = "SKILL.md"
 
 
 class ReleaseProtocolError(RuntimeError):
@@ -73,6 +79,7 @@ class ReleaseManifest:
     python: str
     platform: str
     uv: str
+    skill: Asset | None = None
 
 
 @dataclass(frozen=True)
@@ -131,7 +138,7 @@ def _asset(value: object, version: str, label: str, maximum_size: int) -> Asset:
 
 
 def parse_manifest(raw: bytes, *, manifest_url: str = LATEST_MANIFEST_URL) -> ReleaseManifest:
-    """Parse an exact, bounded release manifest without accepting extensions."""
+    """Parse a bounded release manifest, accepting the optional skill asset."""
     if len(raw) > MANIFEST_LIMIT:
         raise ReleaseProtocolError("Release manifest exceeds 1 MiB.")
     try:
@@ -158,13 +165,18 @@ def parse_manifest(raw: bytes, *, manifest_url: str = LATEST_MANIFEST_URL) -> Re
     if python_spec != ">=3.12,<3.13" or platform_spec != "linux-x86_64" or uv_spec != ">=0.11,<0.12":
         raise ReleaseProtocolError("Release compatibility is unsupported.")
     assets = _expect_mapping(document["assets"], "assets")
-    if set(assets) != {"wheel", "runtime_constraints"}:
+    if not {"wheel", "runtime_constraints"} <= set(assets) or set(assets) - {"wheel", "runtime_constraints", "skill"}:
         raise ReleaseProtocolError("Release manifest must contain one wheel and one constraints file.")
     wheel = _asset(assets["wheel"], version_value, "wheel", WHEEL_LIMIT)
     constraints = _asset(assets["runtime_constraints"], version_value, "runtime_constraints", CONSTRAINTS_LIMIT)
     if not wheel.filename.endswith(".whl") or constraints.filename != "runtime-constraints.txt":
         raise ReleaseProtocolError("Release asset filenames are invalid.")
-    return ReleaseManifest(version_value, manifest_url, wheel, constraints, python_spec, platform_spec, uv_spec)
+    skill = None
+    if "skill" in assets:
+        skill = _asset(assets["skill"], version_value, "skill", SKILL_LIMIT)
+        if skill.filename != SKILL_ASSET_FILENAME:
+            raise ReleaseProtocolError("Skill asset filename is invalid.")
+    return ReleaseManifest(version_value, manifest_url, wheel, constraints, python_spec, platform_spec, uv_spec, skill)
 
 
 def _redirect_host(url: str, *, initial: bool = False) -> str:
@@ -239,6 +251,206 @@ def validate_constraints(raw: bytes) -> None:
         seen.add(name)
     if "cryptography" not in seen:
         raise ReleaseProtocolError("Runtime constraints must include cryptography.")
+
+
+def validate_skill(raw: bytes, version: str) -> str:
+    """Validate and decode the generated skill before it can be installed."""
+    if len(raw) > SKILL_LIMIT:
+        raise ReleaseProtocolError("Envman agent skill exceeds 1 MiB.")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ReleaseProtocolError("Envman agent skill must be UTF-8.") from exc
+    marker = SKILL_VERSION_MARKER.search(text)
+    if marker is None:
+        raise ReleaseProtocolError("Envman agent skill is missing its authenticity marker.")
+    if marker.group("version") != version:
+        raise ReleaseProtocolError("Envman agent skill version does not match the release manifest.")
+    return text
+
+
+def discover_repo_root(cwd: Path | None = None) -> Path:
+    """Find the nearest repository root, or use cwd when no .git exists."""
+    candidate = Path(cwd or Path.cwd()).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    candidate = Path(os.path.abspath(candidate))
+    if not candidate.is_dir() or candidate.is_symlink():
+        raise ReleaseProtocolError("Selected repository root must be a real directory.")
+    for parent in (candidate, *candidate.parents):
+        git_marker = parent / ".git"
+        if git_marker.exists() or git_marker.is_symlink():
+            return parent
+    return candidate
+
+
+def _assert_contained(root: Path, path: Path, label: str) -> None:
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=True))
+    except (OSError, ValueError) as exc:
+        raise ReleaseProtocolError(f"{label} escapes the selected repository root.") from exc
+
+
+def _reject_symlink_components(root: Path, path: Path, label: str) -> None:
+    _assert_contained(root, path, label)
+    relative = path.relative_to(root)
+    current = root
+    for component in relative.parts:
+        current = current / component
+        if current.is_symlink():
+            raise ReleaseProtocolError(f"{label} contains an unsafe symlink.")
+
+
+def _candidate_skill_roots(root: Path) -> list[Path]:
+    found: list[Path] = []
+    for relative in SUPPORTED_SKILL_ROOTS:
+        candidate = root / relative
+        if candidate.exists() or candidate.is_symlink():
+            _reject_symlink_components(root, candidate, "Skill root")
+            if not candidate.is_dir():
+                raise ReleaseProtocolError(f"Skill root is not a directory: {candidate}")
+            found.append(candidate)
+    if not found:
+        found.append(root / ".agents" / "skills")
+    return found
+
+
+def skill_install_targets(repo_root: Path | None = None) -> list[Path]:
+    """Return all supported existing roots, creating .agents/skills if needed."""
+    root = discover_repo_root(repo_root)
+    found = _candidate_skill_roots(root)
+    if len(found) == 1 and not found[0].exists():
+        candidate = found[0]
+        _reject_symlink_components(root, candidate, "Skill root")
+        try:
+            candidate.mkdir(mode=0o755, parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ReleaseProtocolError(f"Skill root is not a directory: {candidate}") from exc
+        if candidate.is_symlink() or not candidate.is_dir():
+            raise ReleaseProtocolError(f"Skill root is unsafe: {candidate}")
+    return found
+
+
+def _validated_skill_destinations(root: Path, roots: Sequence[Path]) -> list[Path]:
+    destinations: list[Path] = []
+    for skill_root in roots:
+        destination_dir = skill_root / SKILL_DIRECTORY_NAME
+        destination = destination_dir / SKILL_FILENAME
+        _reject_symlink_components(root, destination_dir, "Skill destination")
+        if destination_dir.exists() and not destination_dir.is_dir():
+            raise ReleaseProtocolError(f"Skill destination is not a directory: {destination_dir}")
+        if destination.is_symlink():
+            raise ReleaseProtocolError("Skill destination must not be a symlink.")
+        if destination.exists() and not _marked_skill(destination):
+            raise ReleaseProtocolError(f"Refusing to replace an unmarked skill: {destination_dir}")
+        destinations.append(destination)
+    return destinations
+
+
+def _skill_snapshot(root: Path, destinations: Sequence[Path]) -> dict[Path, tuple[str, bytes | None, int | None]]:
+    paths: set[Path] = set()
+    for destination in destinations:
+        _reject_symlink_components(root, destination, "Skill snapshot")
+        current = destination
+        while current != root:
+            paths.add(current)
+            current = current.parent
+    snapshot: dict[Path, tuple[str, bytes | None, int | None]] = {}
+    for path in paths:
+        _reject_symlink_components(root, path, "Skill snapshot")
+        if path.is_symlink():
+            raise ReleaseProtocolError("Skill snapshot contains an unsafe symlink.")
+        elif path.is_file():
+            snapshot[path] = ("file", path.read_bytes(), stat.S_IMODE(path.stat().st_mode))
+        elif path.is_dir():
+            snapshot[path] = ("dir", None, None)
+        else:
+            snapshot[path] = ("missing", None, None)
+    return snapshot
+
+
+def _restore_skill_snapshot(snapshot: Mapping[Path, tuple[str, bytes | None, int | None]]) -> None:
+    for path, (kind, raw, mode) in sorted(snapshot.items(), key=lambda item: len(item[0].parts), reverse=True):
+        if kind == "missing":
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                path.rmdir()
+        elif kind == "file":
+            path.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            assert raw is not None
+            _atomic_skill_write(path, raw)
+            assert mode is not None
+            os.chmod(path, mode)
+        elif kind == "dir" and not path.exists():
+            path.mkdir(mode=0o755)
+
+
+def install_skill_asset(
+    raw: bytes,
+    version: str,
+    *,
+    repo_root: Path | None = None,
+    snapshot: Mapping[Path, tuple[str, bytes | None, int | None]] | None = None,
+) -> list[Path]:
+    """Install one verified skill asset into every safe supported repo-local root."""
+    validate_skill(raw, version)
+    root = discover_repo_root(repo_root)
+    roots = _candidate_skill_roots(root)
+    destinations = _validated_skill_destinations(root, roots)
+    prior = snapshot or _skill_snapshot(root, destinations)
+    skill_install_targets(root)
+    try:
+        for destination in destinations:
+            try:
+                destination.parent.mkdir(mode=0o755, parents=False, exist_ok=True)
+            except OSError as exc:
+                raise ReleaseProtocolError(f"Skill destination is not a directory: {destination.parent}") from exc
+            _reject_symlink_components(root, destination.parent, "Skill destination")
+            _atomic_skill_write(destination, raw)
+    except Exception as install_error:
+        try:
+            _restore_skill_snapshot(prior)
+        except Exception as rollback_error:
+            raise ReleaseProtocolError(f"Skill installation failed and rollback failed: {rollback_error}") from install_error
+        if isinstance(install_error, ReleaseProtocolError):
+            raise
+        raise ReleaseProtocolError(f"Skill installation failed: {install_error}") from install_error
+    return destinations
+
+
+def _marked_skill(path: Path) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return SKILL_VERSION_MARKER.search(text) is not None
+
+
+def _atomic_skill_write(destination: Path, raw: bytes) -> None:
+    parent = destination.parent
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".envman-skill-", dir=parent)
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o644)
+        with os.fdopen(descriptor, "wb", closefd=True) as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+        os.chmod(destination, 0o644)
+        directory_descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 
 
 def validate_wheel(raw: bytes, version: str) -> None:
@@ -429,8 +641,10 @@ def _receipt(manifest: ReleaseManifest, uv_version: str, now: Callable[[], datet
     return InstallReceipt(manifest.version, "github-release-wheel", REPOSITORY, manifest.manifest_url, manifest.wheel, manifest.constraints, INSTALLER_VERSION, uv_version, now().astimezone(UTC).isoformat().replace("+00:00", "Z"))
 
 
-def install_manifest(manifest: ReleaseManifest, *, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> InstallReceipt:
+def install_manifest(manifest: ReleaseManifest, *, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", now: Callable[[], datetime] = lambda: datetime.now(UTC), install_skill: bool = False, repo_root: Path | None = None) -> InstallReceipt:
     """Install one verified manifest, refusing to replace an unowned Envman tool."""
+    if install_skill and manifest.skill is None:
+        raise ReleaseProtocolError("This release does not contain an Envman agent skill asset.")
     uv_version = verify_runtime(runner=runner, uv_executable=uv_executable)
     receipt_file = receipt_path(state_root)
     previous: InstallReceipt | None = None
@@ -443,6 +657,14 @@ def install_manifest(manifest: ReleaseManifest, *, transport: Transport = defaul
     constraints = download_asset(manifest.constraints, transport=transport, maximum_size=CONSTRAINTS_LIMIT)
     validate_wheel(wheel, manifest.version)
     validate_constraints(constraints)
+    skill: bytes | None = None
+    skill_snapshot: Mapping[Path, tuple[str, bytes | None, int | None]] | None = None
+    if install_skill:
+        assert manifest.skill is not None
+        skill = download_asset(manifest.skill, transport=transport, maximum_size=SKILL_LIMIT)
+        validate_skill(skill, manifest.version)
+        skill_root = discover_repo_root(repo_root)
+        skill_snapshot = _skill_snapshot(skill_root, _validated_skill_destinations(skill_root, _candidate_skill_roots(skill_root)))
     root = Path(tempfile.mkdtemp(prefix="envman-release-"))
     try:
         wheel_path = _write_artifact(root, manifest.wheel.filename, wheel)
@@ -458,21 +680,31 @@ def install_manifest(manifest: ReleaseManifest, *, transport: Transport = defaul
             runner(_install_argv(wheel_path, constraints_path, uv_executable=uv_executable))
             _verify_distribution_metadata(manifest.version, runner=runner, uv_executable=uv_executable)
             _verify_command(manifest.version, runner=runner, uv_executable=uv_executable)
+            if skill is not None:
+                install_skill_asset(skill, manifest.version, repo_root=repo_root, snapshot=skill_snapshot)
             result = _receipt(manifest, uv_version, now)
             write_receipt(result, receipt_file)
             return result
         except Exception as install_error:
+            rollback_failures: list[str] = []
+            if skill_snapshot is not None:
+                try:
+                    _restore_skill_snapshot(skill_snapshot)
+                except Exception as rollback_error:
+                    rollback_failures.append(f"skill rollback: {rollback_error}")
             if previous is None:
                 try:
                     runner([uv_executable, "tool", "uninstall", PRODUCT])
-                except (OSError, subprocess.CalledProcessError):
-                    pass
+                except (OSError, subprocess.CalledProcessError) as rollback_error:
+                    rollback_failures.append(f"tool rollback: {rollback_error}")
             else:
                 try:
                     runner(_install_argv(prior_wheel_path, prior_constraints_path, uv_executable=uv_executable))
                     write_receipt(previous, receipt_file)
                 except Exception as rollback_error:
-                    raise ReleaseProtocolError(f"Update failed and rollback failed: {rollback_error}") from install_error
+                    rollback_failures.append(f"update rollback: {rollback_error}")
+            if rollback_failures:
+                raise ReleaseProtocolError(f"Installation failed and rollback failed: {'; '.join(rollback_failures)}") from install_error
             if isinstance(install_error, ReleaseProtocolError):
                 raise
             raise ReleaseProtocolError(f"Installation failed: {install_error}") from install_error
@@ -504,9 +736,26 @@ def update(*, check_only: bool, transport: Transport = default_transport, runner
 def installer_main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Install a verified Envman GitHub release into uv tools.")
     parser.add_argument("--manifest-url", default=LATEST_MANIFEST_URL)
+    skill_group = parser.add_mutually_exclusive_group()
+    skill_group.add_argument("--install-skill", action="store_true", dest="install_skill")
+    skill_group.add_argument("--no-install-skill", action="store_false", dest="install_skill")
+    parser.set_defaults(install_skill=None)
     arguments = parser.parse_args(argv)
     try:
-        receipt = install_manifest(load_manifest(arguments.manifest_url))
+        manifest = load_manifest(arguments.manifest_url)
+        install_skill = arguments.install_skill
+        if install_skill is None:
+            if manifest.skill is None:
+                install_skill = False
+            elif sys.stdin.isatty() and sys.stdout.isatty():
+                try:
+                    answer = input("Install the Envman agent skill into this repository? [Y/n] ").strip().lower()
+                except (EOFError, OSError):
+                    answer = "n"
+                install_skill = answer not in {"n", "no"}
+            else:
+                install_skill = False
+        receipt = install_manifest(manifest, install_skill=install_skill, repo_root=Path.cwd())
     except ReleaseProtocolError as exc:
         print(f"envman installer: {exc}", file=sys.stderr)
         return 2

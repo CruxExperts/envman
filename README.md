@@ -22,6 +22,20 @@ The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=
 
 The resolved executable command works even when the uv tool directory is not yet in `PATH`; after adding that directory to `PATH`, invoke it as `envman`.
 
+### Optional agent skill
+
+Releases that include the optional agent skill can install it alongside Envman:
+
+```bash
+uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py --install-skill
+```
+
+With neither `--install-skill` nor `--no-install-skill`, the installer prompts only when stdin and stdout are terminals; an empty interactive answer defaults to **Yes**. In a non-TTY it never blocks and defaults to **No**. Use `--no-install-skill` to explicitly decline, or `--install-skill` to force installation.
+
+The skill is installed only inside the selected repository: the installer walks upward from the current directory to the nearest `.git` directory (or uses the current directory when none is found). It installs one verified `envman-environment-variable-manager-skill.md` asset into each existing supported repo-local root among `.agents/skills`, `.codex/skills`, `.claude/skills`, `.cursor/skills`, `.gemini/skills`, and `.opencode/skills`; when none exists, it creates `.agents/skills`. Within each root, the destination is `envman-environment-variable-manager/SKILL.md`. It refuses symlinked or escaping paths and does not replace an unmarked existing skill.
+
+The immutable `v0.1.5` release predates this optional skill asset; use a release that includes it when enabling skill installation.
+
 ## First run
 
 ```bash

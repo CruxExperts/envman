@@ -49,4 +49,4 @@ uv run --locked --no-sync python scripts/render_installer.py
 git diff --exit-code -- install.py
 ```
 
-The tag-gated GitHub release workflow sets `SOURCE_DATE_EPOCH` to the tagged commit timestamp, builds twice with `uv build --no-build-isolation`, and compares the wheel and source archive byte-for-byte. `scripts/release_assets.py` then writes exact runtime pins from `uv.lock`, `release-manifest.json`, and `SHA256SUMS.txt`. The publish job creates a draft release from the matching changelog section, attests every release asset, and makes the release public only after those steps succeed.
+The tag-gated GitHub release workflow sets `SOURCE_DATE_EPOCH` to the tagged commit timestamp, builds twice with `uv build --no-build-isolation`, and compares the wheel and source archive byte-for-byte. `scripts/release_assets.py` then writes exact runtime pins from `uv.lock`, legacy and v2 release manifests, the version-locked agent skill, and `SHA256SUMS.txt`. The publish job creates a draft release from the matching changelog section, attests every release asset, and makes the release public only after those steps succeed.

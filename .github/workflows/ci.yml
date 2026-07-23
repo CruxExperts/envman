@@ -22,6 +22,7 @@ jobs:
       - run: uv run --locked --no-sync python scripts/version.py check
       - run: uv run --locked --no-sync python scripts/check_docs.py
       - run: uv run --locked --no-sync python scripts/render_installer.py && git diff --exit-code -- install.py
+      - run: uv run --locked --no-sync python scripts/render_agent_skill.py --check
       - run: |
           export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
           uv build --no-build-isolation --out-dir /tmp/envman-build-a

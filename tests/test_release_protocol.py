@@ -10,6 +10,7 @@ import unittest
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest import mock
 
 from envman import _release_protocol as release
 from scripts.render_installer import render
@@ -48,6 +49,16 @@ def manifest_bytes(version: str = "0.1.0") -> tuple[bytes, dict[str, bytes]]:
     return encoded, bodies
 
 
+def skill_bytes(version: str = "0.1.0") -> bytes:
+    return (
+        "---\n"
+        "name: envman-environment-variable-manager\n"
+        "description: Test Envman skill.\n"
+        "---\n\n"
+        f"<!-- envman-skill-lock: version={version} source=src/envman/cli.py -->\n"
+    ).encode()
+
+
 class ReleaseProtocolTests(unittest.TestCase):
     def test_manifest_accepts_exact_schema_and_assets(self) -> None:
         encoded, _ = manifest_bytes()
@@ -79,6 +90,61 @@ class ReleaseProtocolTests(unittest.TestCase):
         payload["assets"]["wheel"]["url"] = "https://example.test/envman.whl"
         with self.assertRaises(release.ReleaseProtocolError):
             release.parse_manifest(json.dumps(payload).encode())
+
+    def test_manifest_accepts_optional_skill_asset(self) -> None:
+        encoded, _ = manifest_bytes()
+        payload = json.loads(encoded)
+        skill = skill_bytes()
+        payload["assets"]["skill"] = asset("envman-environment-variable-manager-skill.md", skill)
+        parsed = release.parse_manifest(json.dumps(payload).encode())
+        self.assertIsNotNone(parsed.skill)
+        assert parsed.skill is not None
+        self.assertEqual(parsed.skill.filename, "envman-environment-variable-manager-skill.md")
+
+    def test_skill_validation_requires_matching_lock_marker(self) -> None:
+        release.validate_skill(skill_bytes(), "0.1.0")
+        for body in (b"not a skill", skill_bytes("0.1.1")):
+            with self.subTest(body=body), self.assertRaises(release.ReleaseProtocolError):
+                release.validate_skill(body, "0.1.0")
+
+    def test_skill_install_uses_detected_supported_root(self) -> None:
+        body = skill_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            (root / ".codex" / "skills").mkdir(parents=True)
+            destinations = release.install_skill_asset(body, "0.1.0", repo_root=root)
+            self.assertEqual(
+                {path.relative_to(root).as_posix() for path in destinations},
+                {".codex/skills/envman-environment-variable-manager/SKILL.md"},
+            )
+            for destination in destinations:
+                self.assertEqual(destination.read_bytes(), body)
+
+    def test_skill_install_creates_default_root_when_none_exists(self) -> None:
+        body = skill_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            destinations = release.install_skill_asset(body, "0.1.0", repo_root=root)
+            self.assertEqual([path.relative_to(root).as_posix() for path in destinations], [".agents/skills/envman-environment-variable-manager/SKILL.md"])
+            self.assertEqual(destinations[0].read_bytes(), body)
+
+    def test_skill_install_rejects_unmarked_and_broken_symlink_destinations(self) -> None:
+        body = skill_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            destination_dir = root / ".agents" / "skills" / "envman-environment-variable-manager"
+            destination_dir.mkdir(parents=True)
+            destination = destination_dir / "SKILL.md"
+            destination.write_text("user-owned skill\n", encoding="utf-8")
+            with self.assertRaises(release.ReleaseProtocolError):
+                release.install_skill_asset(body, "0.1.0", repo_root=root)
+            destination.unlink()
+            destination.symlink_to(root / "missing-skill.md")
+            with self.assertRaises(release.ReleaseProtocolError):
+                release.install_skill_asset(body, "0.1.0", repo_root=root)
 
     def test_download_rejects_hash_mismatch(self) -> None:
         body = b"body"
@@ -173,6 +239,53 @@ class ReleaseProtocolTests(unittest.TestCase):
                     state_root=Path(temporary) / "state",
                 )
 
+    def test_skill_install_rolls_back_when_receipt_write_fails(self) -> None:
+        encoded, bodies = manifest_bytes()
+        payload = json.loads(encoded)
+        skill = skill_bytes()
+        skill_asset = asset("envman-environment-variable-manager-skill.md", skill)
+        payload["assets"]["skill"] = skill_asset
+        manifest = release.parse_manifest(json.dumps(payload).encode(), manifest_url="https://fixture.test/manifest-v2")
+        bodies[skill_asset["url"]] = skill
+        installed = False
+
+        def runner(argv: list[str]) -> str:
+            nonlocal installed
+            if argv == ["uv", "--version"]:
+                return "uv 0.11.21"
+            if argv == ["uv", "tool", "list"]:
+                return "envman 0.1.0" if installed else ""
+            if argv[:3] == ["uv", "tool", "install"]:
+                installed = True
+                return ""
+            if argv == ["uv", "tool", "dir", "--bin"]:
+                return "/isolated/uv-bin\n"
+            if argv == ["/isolated/uv-bin/envman", "--version"]:
+                return "envman 0.1.0"
+            return ""
+
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            release, "write_receipt", side_effect=release.ReleaseProtocolError("receipt failure")
+        ):
+            root = Path(temporary) / "repo"
+            (root / ".git").mkdir(parents=True)
+            prior_destination = root / ".agents" / "skills" / release.SKILL_DIRECTORY_NAME / release.SKILL_FILENAME
+            prior_destination.parent.mkdir(parents=True)
+            prior_bytes = skill + b"\nprior content\n"
+            prior_destination.write_bytes(prior_bytes)
+            prior_destination.chmod(0o600)
+            with self.assertRaises(release.ReleaseProtocolError):
+                release.install_manifest(
+                    manifest,
+                    transport=lambda url, _limit: bodies[url],
+                    runner=runner,
+                    state_root=Path(temporary) / "state",
+                    repo_root=root,
+                    install_skill=True,
+                )
+            self.assertEqual(prior_destination.read_bytes(), prior_bytes)
+            self.assertEqual(stat.S_IMODE(prior_destination.stat().st_mode), 0o600)
+
     def test_metadata_mismatch_removes_initial_install_without_receipt(self) -> None:
         encoded, bodies = manifest_bytes()
         manifest = release.parse_manifest(encoded)
@@ -199,6 +312,78 @@ class ReleaseProtocolTests(unittest.TestCase):
         self.assertIn('# requires-python = ">=3.12,<3.13"', installer)
         self.assertIn("# dependencies = []", installer)
         self.assertIn(protocol, installer)
+
+    def test_installer_prompt_defaults_yes_only_for_interactive_skill_release(self) -> None:
+        manifest = release.parse_manifest(
+            json.dumps(
+                {
+                    "schema": release.MANIFEST_SCHEMA,
+                    "schema_version": 1,
+                    "version": "0.1.0",
+                    "repository": release.REPOSITORY,
+                    "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11,<0.12"},
+                    "assets": {
+                        "wheel": asset("envman-0.1.0-py3-none-any.whl", wheel_bytes()),
+                        "runtime_constraints": asset("runtime-constraints.txt", b"cryptography==49.0.0\n"),
+                        "skill": asset("envman-environment-variable-manager-skill.md", skill_bytes()),
+                    },
+                }
+            ).encode()
+        )
+        receipt = release.InstallReceipt(
+            "0.1.0",
+            "github-release-wheel",
+            release.REPOSITORY,
+            release.LATEST_MANIFEST_URL,
+            manifest.wheel,
+            manifest.constraints,
+            release.INSTALLER_VERSION,
+            "0.11.21",
+            "2026-07-19T00:00:00Z",
+        )
+        with mock.patch.object(release, "load_manifest", return_value=manifest), mock.patch.object(
+            release, "install_manifest", return_value=receipt
+        ) as installer, mock.patch("builtins.input", return_value=""), mock.patch.object(
+            release.sys.stdin, "isatty", return_value=True
+        ), mock.patch.object(release.sys.stdout, "isatty", return_value=True):
+            self.assertEqual(release.installer_main([]), 0)
+        self.assertEqual(installer.call_args.kwargs["install_skill"], True)
+
+    def test_installer_skips_skill_by_default_without_tty(self) -> None:
+        manifest = release.parse_manifest(
+            json.dumps(
+                {
+                    "schema": release.MANIFEST_SCHEMA,
+                    "schema_version": 1,
+                    "version": "0.1.0",
+                    "repository": release.REPOSITORY,
+                    "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11,<0.12"},
+                    "assets": {
+                        "wheel": asset("envman-0.1.0-py3-none-any.whl", wheel_bytes()),
+                        "runtime_constraints": asset("runtime-constraints.txt", b"cryptography==49.0.0\n"),
+                        "skill": asset("envman-environment-variable-manager-skill.md", skill_bytes()),
+                    },
+                }
+            ).encode()
+        )
+        receipt = release.InstallReceipt(
+            "0.1.0",
+            "github-release-wheel",
+            release.REPOSITORY,
+            release.LATEST_MANIFEST_URL,
+            manifest.wheel,
+            manifest.constraints,
+            release.INSTALLER_VERSION,
+            "0.11.21",
+            "2026-07-19T00:00:00Z",
+        )
+        with mock.patch.object(release, "load_manifest", return_value=manifest), mock.patch.object(
+            release, "install_manifest", return_value=receipt
+        ) as installer, mock.patch.object(release.sys.stdin, "isatty", return_value=False), mock.patch.object(
+            release.sys.stdout, "isatty", return_value=False
+        ):
+            self.assertEqual(release.installer_main([]), 0)
+        self.assertEqual(installer.call_args.kwargs["install_skill"], False)
 
 
 if __name__ == "__main__":

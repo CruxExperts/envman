@@ -5,7 +5,7 @@ title: Installation sources and updates
 
 # Installation sources and updates
 
-The public installer is a committed PEP 723 `uv --script` file generated from Envman's standard-library release protocol. It has no third-party runtime dependencies. It downloads `release-manifest.json` from the latest GitHub release, then downloads only the assets named by that manifest.
+The public installer is a committed PEP 723 `uv --script` file generated from Envman's standard-library release protocol. It has no third-party runtime dependencies. The next skill-bearing public release will download `release-manifest-v2.json` from the latest GitHub release, then download only the assets named by that manifest. The legacy `release-manifest.json` remains wheel-and-constraints-only so immutable pre-skill installers can continue updating; the immutable v0.1.5 installer still uses that legacy manifest.
 
 ## Trust boundary
 

@@ -3,9 +3,9 @@ layout: default
 title: Publishing checklist
 ---
 
-# Publishing checklist
+# Historical v0.1.5 publishing checklist
 
-Use this checklist for the Envman 0.1.5 release. Every box is intentionally unchecked: local preparation is evidence for the controller, while GitHub and publication steps require an explicit remote review.
+This checklist records the immutable Envman 0.1.5 release procedure. Do not rerun its tag or publication steps: v0.1.5 predates the optional agent skill and cannot be replaced. Every box is intentionally unchecked: historical evidence is for the controller, while GitHub and publication steps required explicit remote review.
 
 ## Public boundary
 
