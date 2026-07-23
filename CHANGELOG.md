@@ -2,6 +2,17 @@
 
 All notable changes are documented here.
 
+## [0.1.6] - 2026-07-22
+
+### Added
+
+- Publish the version-locked `envman-environment-variable-manager` agent skill with the release assets.
+- Add optional public-installer skill installation with safe repository-local targets and rollback.
+
+### Changed
+
+- Keep the legacy release manifest compatible with pre-skill installers while current installers use the v2 manifest.
+
 ## [0.1.5] - 2026-07-20
 
 ### Fixed

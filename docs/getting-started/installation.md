@@ -5,7 +5,7 @@ title: Install Envman
 
 # Install Envman
 
-Envman 0.1.5 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`; use `uv 0.11.21` for this release. Run the public installer through `uv`; do not pipe the downloaded file to a shell.
+Envman 0.1.6 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`; use `uv 0.11.21` for this release. Run the public installer through `uv`; do not pipe the downloaded file to a shell.
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
@@ -31,7 +31,7 @@ With neither flag, the installer prompts only when stdin and stdout are TTYs. An
 
 When enabled, the installer verifies the manifest's skill asset and installs it only within the selected repository. It walks upward from the current directory to the nearest `.git` directory; if none exists, it uses the current directory. It installs the same verified asset into each detected existing supported repo-local root: `.agents/skills`, `.codex/skills`, `.claude/skills`, `.cursor/skills`, `.gemini/skills`, and `.opencode/skills`; if no supported root exists, it creates `.agents/skills`. Within each root, the destination is `envman-environment-variable-manager/SKILL.md`. Symlinks and paths escaping the selected repository are rejected, and an unmarked existing skill is never replaced.
 
-The immutable `v0.1.5` release predates this optional skill asset; these options apply to a release that includes the asset.
+The immutable `v0.1.5` release predates this optional skill asset. Envman 0.1.6 is the first release containing it.
 
 ## Update
 
@@ -41,7 +41,7 @@ envman update --check --json
 envman update
 ```
 
-After installation, Envman writes an atomic mode-`0600` receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, repository, manifest URL, verified wheel and constraints assets, installer and `uv` versions; receipts created by the 0.1.5 installer record `installer_version: 0.1.5`. Updates use only the recorded provider and manifest source.
+After installation, Envman writes an atomic mode-`0600` receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, repository, manifest URL, verified wheel and constraints assets, installer and `uv` versions; receipts created by the 0.1.6 installer record `installer_version: 0.1.6`. Updates use only the recorded provider and manifest source.
 
 `update --check` reports `current` or `update-available` without changing the tool. `update` refuses a downgrade and does not reinstall the same version. It verifies the candidate assets before installation and keeps the previous verified wheel, constraints, and receipt available for rollback if replacement fails. A missing, malformed, symlinked, or untrusted receipt is a trust error; Envman does not silently switch update channels.
 
