@@ -5,7 +5,7 @@ title: Install Envman
 
 # Install Envman
 
-Envman 0.1.6 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`; use `uv 0.11.21` for this release. Run the public installer through `uv`; do not pipe the downloaded file to a shell.
+Envman 0.1.7 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`; use `uv 0.11.21` for this release. Run the public installer through `uv`; do not pipe the downloaded file to a shell.
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
@@ -14,9 +14,15 @@ ENVMAN="$(uv tool dir --bin)/envman"
 "$ENVMAN"
 ```
 
-The installer downloads the bounded release manifest, accepts only the trusted `CruxExperts/envman` GitHub release asset URLs, checks asset sizes and SHA-256 hashes, validates the pinned runtime constraints and wheel metadata, checks the host and `uv` versions, and installs only the verified local wheel with `uv tool install --no-build`. It resolves the installed executable from `uv tool dir --bin`, so verification does not depend on the tool directory already being present in `PATH`. If an Envman tool is already present, replacement requires a valid Envman install receipt.
+The installer downloads the bounded release manifest, accepts only the trusted `CruxExperts/envman` GitHub release asset URLs, checks asset sizes and SHA-256 hashes, validates the pinned runtime constraints and wheel metadata, checks the host and `uv` versions, and installs only the verified local wheel with `uv tool install --no-build`. It resolves the installed executable from `uv tool dir --bin`, so verification does not depend on the tool directory already being present in `PATH`. If an Envman tool is already present, replacement requires a valid Envman install receipt. The installer never silently generates or replaces an encrypted-backup key; first runtime or the explicit key command handles that with approval.
 
 The resolved executable command works before the uv tool directory is in `PATH`. After adding the directory reported by `uv tool dir --bin` to `PATH`, use the shorter `envman` command.
+
+## Encrypted-backup key setup
+
+When `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. Otherwise the first runtime may offer a private mode-`0600` fallback at `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`. The TUI clearly prompts before generating a missing key; declining leaves state unchanged and encrypted-backup operations unavailable.
+
+For automation or AI agents, use `envman key --generate --approve-key-generation`. `--yes` and `--force` are not approval. The command never prints key material, preserves an existing key file, and fails closed for malformed key files.
 
 ## Optional agent skill
 
@@ -41,7 +47,7 @@ envman update --check --json
 envman update
 ```
 
-After installation, Envman writes an atomic mode-`0600` receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, repository, manifest URL, verified wheel and constraints assets, installer and `uv` versions; receipts created by the 0.1.6 installer record `installer_version: 0.1.6`. Updates use only the recorded provider and manifest source.
+After installation, Envman writes an atomic mode-`0600` receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, repository, manifest URL, verified wheel and constraints assets, installer and `uv` versions; receipts created by the 0.1.7 installer record `installer_version: 0.1.7`. Updates use only the recorded provider and manifest source.
 
 `update --check` reports `current` or `update-available` without changing the tool. `update` refuses a downgrade and does not reinstall the same version. It verifies the candidate assets before installation and keeps the previous verified wheel, constraints, and receipt available for rollback if replacement fails. A missing, malformed, symlinked, or untrusted receipt is a trust error; Envman does not silently switch update channels.
 

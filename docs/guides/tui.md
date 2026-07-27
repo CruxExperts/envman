@@ -7,6 +7,12 @@ title: Terminal UI
 
 Run `envman` with no command to open the interactive catalog. The catalog is full-height and index-free: it uses the available rows between the fixed header and footer and never assigns numeric indexes to variables. The minimum supported terminal size is 80 columns by 18 rows. If the terminal is smaller, Envman shows a size message and ignores catalog actions until it is resized.
 
+## Encrypted-backup key prompt
+
+At TUI startup, when `ENVMAN_BACKUP_KEY` is not configured and the private fallback at `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key` is missing, Envman clearly asks before generating it. Declining leaves state unchanged and encrypted-backup operations unavailable. Existing key files are preserved, malformed key files fail closed, and the generated file is mode `0600`.
+
+Automation and AI agents must use `envman key --generate --approve-key-generation`; `--yes` and `--force` are not approval. Key-generation output never prints key material. The installer does not silently generate this key.
+
 ## Catalog controls
 
 - **Up/Down** moves focus.
@@ -16,9 +22,9 @@ Run `envman` with no command to open the interactive catalog. The catalog is ful
 - **R** renames the focused variable.
 - **C** copies one managed source value to every selected target. With no selected targets, it copies to the focused variable.
 - **D** deletes every selected variable. With no selection, it deletes the focused variable after confirmation.
-- **B** writes an encrypted backup of the selected variables. With no selection, it writes every managed variable.
+- **B** writes an encrypted backup of the selected variables. With no selection, it writes every managed variable; it is unavailable until an approved backup key is available.
 - **I** opens a preview of variables from the current process environment.
-- **J** opens a preview of an encrypted backup.
+- **J** opens a preview of an encrypted backup; encrypted-backup operations remain unavailable after a declined key-generation prompt.
 - **O** changes sort order; **F** edits the filter pattern; **M** changes whether the filter matches names, values, or both; **[** and **]** scroll the focused value details.
 - **Q** or **Esc** leaves the catalog and reloads the managed environment in a child shell.
 

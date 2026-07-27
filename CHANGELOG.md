@@ -2,6 +2,14 @@
 
 All notable changes are documented here.
 
+## [0.1.7] - 2026-07-27
+
+### Added
+
+- Add approved fallback encryption-key generation for encrypted backups.
+- Add a centered TUI approval popup and an explicit CLI approval switch for key generation.
+- Preserve explicit `ENVMAN_BACKUP_KEY` precedence and fail closed on malformed or insecure key files.
+
 ## [0.1.6] - 2026-07-22
 
 ### Added

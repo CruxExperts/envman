@@ -47,14 +47,22 @@ Imports preserve the process value bytes. URL names are checked for valid URL sy
 
 ## Encrypted backup commands
 
-Populate `ENVMAN_BACKUP_KEY` through a password manager or another trusted mechanism that does not record the value in shell history. Then run:
+When `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. If it is unset, Envman may use the private mode-`0600` fallback at `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`. The fallback is separate from `environment.conf`, which is not encrypted.
+
+For automation or AI agents, key generation requires the dedicated explicit command:
+
+```bash
+envman key --generate --approve-key-generation
+```
+
+`--yes` and `--force` are not approval. The command never prints key material, preserves an existing key file, and fails closed for a malformed key file. Envman never creates or replaces a fallback key silently; TUI startup asks before generating it.
 
 ```bash
 envman export ./envman-backup.json
 envman import-backup ./envman-backup.json --all --apply
 ```
 
-`export` writes every managed variable to an authenticated encrypted JSON envelope. `import-backup` previews candidates unless `--apply` is supplied; use names or `--all` to choose the candidates and `--replace` for intentional managed-name collisions. See [encrypted backups and migration](backups-and-migration.md) for the envelope, file permissions, and migration procedure.
+`export` writes every managed variable to an authenticated encrypted JSON envelope. `import-backup` previews candidates unless `--apply` is supplied; use names or `--all` to choose the candidates and `--replace` for intentional managed-name collisions. Both commands require an approved key; if the TUI generation prompt is declined, encrypted-backup operations are unavailable. See [encrypted backups and migration](backups-and-migration.md) for the envelope, file permissions, and migration procedure.
 
 ## Verified updates
 

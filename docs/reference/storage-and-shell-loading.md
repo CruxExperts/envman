@@ -11,7 +11,13 @@ Envman stores managed assignments in:
 ${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf
 ```
 
-When Envman creates the directory it uses mode `0700`; `environment.conf` and the generated loader files are written with mode `0600`. `XDG_CONFIG_HOME`, when set, must be an absolute path. `envman target` prints the resolved path. `envman init` creates the directory and installs shell loaders without adding a variable; saving a variable also installs or refreshes the loaders.
+When Envman creates the directory it uses mode `0700`; `environment.conf` and the generated loader files are written with mode `0600`. `environment.conf` is not encrypted. `XDG_CONFIG_HOME`, when set, must be an absolute path. `envman target` prints the resolved path. `envman init` creates the directory and installs shell loaders without adding a variable; saving a variable also installs or refreshes the loaders.
+
+## Encrypted-backup key storage
+
+If `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. If it is unset, Envman may use `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key` as a generated private fallback with mode `0600`. Envman never creates or replaces the fallback silently. TUI startup prompts before generation; declining leaves state unchanged and encrypted-backup operations unavailable.
+
+Automation and AI agents must invoke `envman key --generate --approve-key-generation`. `--yes` and `--force` are not approval. Key-generation output never prints key material, existing key files are preserved, and malformed key files fail closed. The installer itself does not generate this key.
 
 ## Shell loaders and preservation
 

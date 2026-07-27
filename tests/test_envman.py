@@ -110,6 +110,22 @@ class EnvmanInputTests(unittest.TestCase):
 
         self.assertIsNone(envman.EnvmanTUI(screen, store).prompt("Value", secret=True))
 
+    def test_confirm_modal_draws_a_popup_and_handles_resize_yes_and_no(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.side_effect = [(17, 79), (20, 80), (20, 80)]
+        screen.get_wch.side_effect = ["x", "y"]
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        tui = envman.EnvmanTUI(screen, store)
+
+        self.assertTrue(tui.confirm_modal("Generate a private encryption key now?"))
+        self.assertTrue(any("Generate a private encryption key now?" in call.args[2] for call in screen.addnstr.call_args_list))
+
+        decline_screen = mock.MagicMock()
+        decline_screen.getmaxyx.return_value = (20, 80)
+        decline_screen.get_wch.return_value = "n"
+        decline_tui = envman.EnvmanTUI(decline_screen, store)
+        self.assertFalse(decline_tui.confirm_modal("Generate a private encryption key now?"))
+
     @mock.patch.object(envman.curses, "curs_set")
     def test_variable_name_prompt_uppercases_and_rejects_invalid_characters(self, curs_set: mock.MagicMock) -> None:
         screen = mock.MagicMock()
@@ -358,6 +374,7 @@ class EnvmanInputTests(unittest.TestCase):
         screen.get_wch.side_effect = ["o", "f", "a", 27]
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         tui = envman.EnvmanTUI(screen, store)
+        tui.ensure_encryption_key = mock.MagicMock()
         tui.draw = mock.MagicMock()
         tui.add = mock.MagicMock()
         tui.set_filter = mock.MagicMock()
@@ -375,6 +392,7 @@ class EnvmanInputTests(unittest.TestCase):
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         store.values = {"ALPHA": "one", "BETA": "two"}
         tui = envman.EnvmanTUI(screen, store)
+        tui.ensure_encryption_key = mock.MagicMock()
         tui.draw = mock.MagicMock()
 
         self.assertFalse(tui.run())
@@ -469,6 +487,7 @@ class EnvmanInputTests(unittest.TestCase):
                 27,
             ]
             tui = envman.EnvmanTUI(screen, store)
+            tui.ensure_encryption_key = mock.MagicMock()
             statuses: list[str] = []
             tui.draw = mock.MagicMock(side_effect=lambda: statuses.append(tui.status))
 
@@ -581,6 +600,7 @@ class EnvmanInputTests(unittest.TestCase):
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         store.values = {"ALPHA": "one", "BETA": "two"}
         main = envman.EnvmanTUI(screen, store)
+        main.ensure_encryption_key = mock.MagicMock()
         main.selected = 1
         main.selected_names = {"ALPHA"}
         main.draw()
@@ -613,6 +633,7 @@ class EnvmanInputTests(unittest.TestCase):
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         store.values = {"ALPHA": "one"}
         tui = envman.EnvmanTUI(screen, store)
+        tui.ensure_encryption_key = mock.MagicMock()
         tui.draw = mock.MagicMock()
         self.assertFalse(tui.run())
         self.assertEqual(tui.selected_names, set())
@@ -674,6 +695,7 @@ class EnvmanInputTests(unittest.TestCase):
         screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
         screen.get_wch.side_effect = ["b", "j", 27]
         tui = envman.EnvmanTUI(screen, envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config")))
+        tui.ensure_encryption_key = mock.MagicMock()
         tui.draw = mock.MagicMock()
         tui.configure_colors = mock.MagicMock()
         tui.backup_group = mock.MagicMock()
@@ -1224,6 +1246,141 @@ class EnvmanPersistenceTests(unittest.TestCase):
             self.assertTrue(preview.applied)
             self.assertIn("Replaced 1 managed variable", preview.status)
 
+
+    def test_encryption_key_path_is_private_under_the_store_utility_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+
+            self.assertEqual(store.encryption_key_path.parent, store.utility_dir)
+            self.assertEqual(store.encryption_key_path.name, "encryption.key")
+            self.assertEqual(store.encryption_key_path, store.utility_dir / envman.KEY_FILE_NAME)
+
+    def test_encryption_key_generation_creates_valid_private_key_and_never_overwrites(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            key_path = Path(temporary_directory) / "config" / "envman" / "encryption.key"
+
+            envman.generate_encryption_key(key_path)
+            first_key = key_path.read_bytes()
+            self.assertEqual(key_path.stat().st_mode & 0o777, 0o600)
+            cipher = envman.Fernet(first_key)
+            self.assertEqual(cipher.decrypt(cipher.encrypt(b"envman-key-test")), b"envman-key-test")
+
+            envman.generate_encryption_key(key_path)
+            self.assertEqual(key_path.read_bytes(), first_key)
+
+    def test_configured_encryption_key_prefers_environment_and_rejects_malformed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            key_path = Path(temporary_directory) / "encryption.key"
+            file_key = envman.Fernet.generate_key()
+            key_path.write_bytes(file_key)
+            key_path.chmod(0o600)
+            environment_key = "environment credential"
+
+            with mock.patch.dict(
+                envman.os.environ,
+                {envman.BACKUP_KEY_ENV: environment_key},
+                clear=True,
+            ):
+                self.assertEqual(envman.configured_encryption_key(key_path), environment_key.encode())
+
+            with mock.patch.dict(envman.os.environ, {}, clear=True):
+                self.assertEqual(envman.configured_encryption_key(key_path), file_key)
+                key_path.write_bytes(b"malformed encryption key")
+                with self.assertRaisesRegex(envman.StoreError, "malformed"):
+                    envman.configured_encryption_key(key_path)
+                self.assertEqual(key_path.read_bytes(), b"malformed encryption key")
+
+    def test_tui_generates_a_missing_key_only_after_the_generation_prompt_is_accepted(self) -> None:
+        with (
+            mock.patch.dict(envman.os.environ, {}, clear=True),
+            tempfile.TemporaryDirectory() as temporary_directory,
+        ):
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            screen = mock.MagicMock()
+            screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+            screen.get_wch.side_effect = ["y", 27]
+            tui = envman.EnvmanTUI(screen, store)
+            tui._set_cursor_visibility = mock.MagicMock()
+            tui.configure_colors = mock.MagicMock()
+            tui.draw = mock.MagicMock()
+
+            with mock.patch.object(tui, "confirm_modal", return_value=True) as confirm:
+                self.assertFalse(tui.run())
+
+            confirm.assert_called_once()
+            self.assertIn(
+                "No configured ENVMAN_BACKUP_KEY was found; generation will create a new private key.",
+                confirm.call_args.args[0],
+            )
+            self.assertTrue(store.encryption_key_path.exists())
+            self.assertEqual(tui.status.casefold().count("generated"), 1)
+
+    def test_tui_declining_or_escaping_key_generation_never_creates_a_key(self) -> None:
+        for answer, input_keys in (("no", [27]), ("escape", [27, 27])):
+            with (
+                self.subTest(answer=answer),
+                mock.patch.dict(envman.os.environ, {}, clear=True),
+                tempfile.TemporaryDirectory() as temporary_directory,
+            ):
+                home = Path(temporary_directory) / "home"
+                home.mkdir()
+                store = envman.EnvironmentStore(home, home / ".config")
+                screen = mock.MagicMock()
+                screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+                screen.get_wch.side_effect = input_keys
+                tui = envman.EnvmanTUI(screen, store)
+                tui._set_cursor_visibility = mock.MagicMock()
+                tui.configure_colors = mock.MagicMock()
+                tui.draw = mock.MagicMock()
+
+                if answer == "no":
+                    with mock.patch.object(tui, "confirm_modal", return_value=False):
+                        self.assertFalse(tui.run())
+                else:
+                    self.assertFalse(tui.run())
+
+                self.assertFalse(store.encryption_key_path.exists())
+                self.assertTrue(
+                    any(term in tui.status.casefold() for term in ("cancel", "available", "skipped")),
+                    tui.status,
+                )
+
+    def test_tui_existing_key_skips_generation_prompt_and_malformed_key_is_not_overwritten(self) -> None:
+        with (
+            mock.patch.dict(envman.os.environ, {}, clear=True),
+            tempfile.TemporaryDirectory() as temporary_directory,
+        ):
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            envman.generate_encryption_key(store.encryption_key_path)
+            original_key = store.encryption_key_path.read_bytes()
+            screen = mock.MagicMock()
+            screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+            screen.get_wch.return_value = 27
+            tui = envman.EnvmanTUI(screen, store)
+            tui._set_cursor_visibility = mock.MagicMock()
+            tui.configure_colors = mock.MagicMock()
+            tui.draw = mock.MagicMock()
+
+            with mock.patch.object(tui, "confirm_modal") as confirm:
+                self.assertFalse(tui.run())
+
+            confirm.assert_not_called()
+            self.assertEqual(store.encryption_key_path.read_bytes(), original_key)
+
+            malformed_key = b"malformed existing key"
+            store.encryption_key_path.write_bytes(malformed_key)
+            with mock.patch.object(tui, "confirm_modal") as confirm:
+                self.assertFalse(tui.run())
+
+            confirm.assert_not_called()
+            self.assertEqual(store.encryption_key_path.read_bytes(), malformed_key)
+            self.assertIn("malformed", tui.status.casefold())
 
     def test_failed_loader_installation_does_not_write_or_keep_a_ui_change(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1788,6 +1945,133 @@ class EnvmanCliTests(unittest.TestCase):
 
         self.assertEqual(store.values, {"API_KEY": "abcdefghijk"})
         self.assertIn("would expose", tui.status)
+
+    def test_cli_encrypted_backups_fall_back_to_the_store_key_without_environment_key(self) -> None:
+        values = {"API_KEY": "abcdefghijk", "PUBLIC_VALUE": "external value"}
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_home = root / "source-home"
+            target_home = root / "target-home"
+            source_home.mkdir()
+            target_home.mkdir()
+            destination = root / "backup.json"
+            source_store = envman.EnvironmentStore(source_home, source_home / ".config")
+            target_store = envman.EnvironmentStore(target_home, target_home / ".config")
+            envman.generate_encryption_key(source_store.encryption_key_path)
+            target_store.encryption_key_path.parent.mkdir(parents=True, exist_ok=True)
+            target_store.encryption_key_path.write_bytes(source_store.encryption_key_path.read_bytes())
+            target_store.encryption_key_path.parent.chmod(0o700)
+            target_store.encryption_key_path.chmod(0o600)
+            source_store.values = values
+
+            with mock.patch.dict(envman.os.environ, {}, clear=True):
+                exit_code, output = self.run_command(source_store, "export", str(destination), "--json")
+                self.assertEqual(exit_code, envman.EXIT_SUCCESS)
+                self.assertNotIn("abcdefghijk", output)
+
+                exit_code, output = self.run_command(
+                    target_store,
+                    "import-backup",
+                    str(destination),
+                    "--all",
+                    "--apply",
+                    "--json",
+                )
+
+            self.assertEqual(exit_code, envman.EXIT_SUCCESS)
+            self.assertNotIn("abcdefghijk", output)
+            self.assertEqual(target_store.values, values)
+
+    def test_cli_encrypted_backups_prefer_environment_key_over_malformed_file_keys(self) -> None:
+        values = {"API_KEY": "abcdefghijk", "PUBLIC_VALUE": "external value"}
+        environment_key = "correct horse battery staple"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_home = root / "source-home"
+            target_home = root / "target-home"
+            source_home.mkdir()
+            target_home.mkdir()
+            destination = root / "backup.json"
+            source_store = envman.EnvironmentStore(source_home, source_home / ".config")
+            target_store = envman.EnvironmentStore(target_home, target_home / ".config")
+            source_store.encryption_key_path.parent.mkdir(parents=True, exist_ok=True)
+            target_store.encryption_key_path.parent.mkdir(parents=True, exist_ok=True)
+            source_store.encryption_key_path.write_bytes(b"malformed source key")
+            target_store.encryption_key_path.write_bytes(b"malformed target key")
+            source_store.encryption_key_path.chmod(0o600)
+            target_store.encryption_key_path.chmod(0o600)
+            source_store.values = values
+
+            with mock.patch.dict(
+                envman.os.environ,
+                {envman.BACKUP_KEY_ENV: environment_key},
+                clear=True,
+            ):
+                exit_code, output = self.run_command(source_store, "export", str(destination), "--json")
+                self.assertEqual(exit_code, envman.EXIT_SUCCESS)
+                self.assertNotIn(environment_key, output)
+
+                exit_code, output = self.run_command(
+                    target_store,
+                    "import-backup",
+                    str(destination),
+                    "--all",
+                    "--apply",
+                    "--json",
+                )
+
+            self.assertEqual(exit_code, envman.EXIT_SUCCESS)
+            self.assertNotIn(environment_key, output)
+            self.assertNotIn("abcdefghijk", output)
+            self.assertEqual(target_store.values, values)
+
+    def test_cli_key_generation_requires_dedicated_approval_and_is_idempotent(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            mock.patch.dict(envman.os.environ, {}, clear=True),
+        ):
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+
+            for bypass in ((), ("--yes",), ("--force",)):
+                with self.subTest(bypass=bypass):
+                    with self.assertRaisesRegex(envman.CommandError, "approve-key-generation"):
+                        self.run_command(store, "key", "--generate", *bypass, "--json")
+                    self.assertFalse(store.encryption_key_path.exists())
+
+            exit_code, output = self.run_command(
+                store,
+                "key",
+                "--generate",
+                "--approve-key-generation",
+                "--json",
+            )
+            self.assertEqual(exit_code, envman.EXIT_SUCCESS)
+            first_key = store.encryption_key_path.read_bytes()
+            first_result = json.loads(output)
+            self.assertEqual(first_result["action"], "key")
+            self.assertEqual(first_result["status"], "created")
+            self.assertNotIn(first_key.decode("ascii"), output)
+
+            exit_code, output = self.run_command(
+                store,
+                "key",
+                "--generate",
+                "--approve-key-generation",
+                "--json",
+            )
+            self.assertEqual(exit_code, envman.EXIT_SUCCESS)
+            second_result = json.loads(output)
+            self.assertEqual(second_result["action"], "key")
+            self.assertEqual(second_result["status"], "unchanged")
+            self.assertEqual(set(first_result), set(second_result))
+            self.assertEqual(store.encryption_key_path.read_bytes(), first_key)
+            self.assertNotIn(first_key.decode("ascii"), output)
+
+            _, text_output = self.run_command(store, "key", "--generate", "--approve-key-generation")
+            self.assertIn("unchanged", text_output.casefold())
+            self.assertNotIn(first_key.decode("ascii"), text_output)
 
     def test_main_reports_loader_os_errors_without_a_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

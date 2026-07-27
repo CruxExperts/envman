@@ -3,7 +3,7 @@ name: envman-environment-variable-manager
 description: Manage Envman CLI and terminal UI workflows for durable environment variables, process or encrypted-backup imports, shell loaders, encrypted backups, verified GitHub installation or updates, and receipt behavior. Use for Envman commands, TUI controls, managed-variable safety, migration, or release updates; do not use for generic shell questions unrelated to Envman.
 ---
 
-<!-- envman-skill-lock: version=0.1.6 source=src/envman/cli.py -->
+<!-- envman-skill-lock: version=0.1.7 source=src/envman/cli.py -->
 
 # Envman
 
@@ -61,13 +61,27 @@ envman import --all --apply
 | `list` | List managed variables. |
 | `get` | Read one managed variable. |
 | `import` | Preview or explicitly import variables from the current process environment. |
-| `export` | Write all managed variables as an encrypted JSON backup using $ENVMAN_BACKUP_KEY. |
-| `import-backup` | Preview or explicitly import variables from an encrypted JSON backup using $ENVMAN_BACKUP_KEY. |
+| `export` | Write all managed variables as an encrypted JSON backup using $ENVMAN_BACKUP_KEY or the private key file. |
+| `import-backup` | Preview or explicitly import variables from an encrypted JSON backup using $ENVMAN_BACKUP_KEY or the private key file. |
+| `key` | Report or explicitly generate the encrypted-backup key. |
 | `set` | Create or replace one managed variable. |
 | `unset` | Remove one managed variable. |
 | `rename` | Rename one managed variable. |
 | `validate` | Validate a variable without saving it. |
 <!-- END GENERATED COMMANDS -->
+
+For encrypted-backup key setup, an AI agent MUST request both explicit switches:
+
+```bash
+envman key --generate --approve-key-generation
+```
+
+The command creates `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`
+only when no `ENVMAN_BACKUP_KEY` or fallback key is configured. It preserves
+existing key files, emits no key material, and `--yes`/`--force` never approve
+generation. A malformed or insecure key file fails closed. The TUI shows a
+centered approval popup before creating the same fallback; No/Esc leaves state
+unchanged and encrypted-backup operations unavailable.
 
 All commands support `--json` where shown by `envman --help`; structured output is
 preferred for automation. Use `--stdin` for values that must not appear in shell
@@ -111,8 +125,8 @@ fail closed; a failed replacement must preserve the previous working install.
 
 ## Canonical documentation
 
-- [CLI reference](https://github.com/CruxExperts/envman/blob/v0.1.6/docs/guides/cli.md)
-- [Encrypted backups and migration](https://github.com/CruxExperts/envman/blob/v0.1.6/docs/guides/backups-and-migration.md)
-- [Terminal UI guide](https://github.com/CruxExperts/envman/blob/v0.1.6/docs/guides/tui.md)
-- [Storage and shell loading](https://github.com/CruxExperts/envman/blob/v0.1.6/docs/reference/storage-and-shell-loading.md)
-- [Installation sources and updates](https://github.com/CruxExperts/envman/blob/v0.1.6/docs/reference/install-source-and-updates.md)
+- [CLI reference](https://github.com/CruxExperts/envman/blob/v0.1.7/docs/guides/cli.md)
+- [Encrypted backups and migration](https://github.com/CruxExperts/envman/blob/v0.1.7/docs/guides/backups-and-migration.md)
+- [Terminal UI guide](https://github.com/CruxExperts/envman/blob/v0.1.7/docs/guides/tui.md)
+- [Storage and shell loading](https://github.com/CruxExperts/envman/blob/v0.1.7/docs/reference/storage-and-shell-loading.md)
+- [Installation sources and updates](https://github.com/CruxExperts/envman/blob/v0.1.7/docs/reference/install-source-and-updates.md)

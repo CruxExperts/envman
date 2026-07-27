@@ -10,6 +10,9 @@ import curses
 import json
 import os
 import re
+import textwrap
+import secrets
+import stat
 import sys
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 import tempfile
@@ -191,6 +194,165 @@ ENCRYPTED_BACKUP_SCRYPT_R = 8
 ENCRYPTED_BACKUP_SCRYPT_P = 1
 MAX_ENCRYPTED_BACKUP_BYTES = 8 * 1024 * 1024
 
+KEY_FILE_NAME = "encryption.key"
+ENCRYPTION_KEY_FILE_MODE = 0o600
+ENCRYPTION_KEY_READ_LIMIT = 45
+ENCRYPTION_KEY_PARENT_MODE = 0o700
+
+
+def _secure_encryption_key_parent(key_path: Path, *, create: bool) -> tuple[Path, int | None]:
+    parent = Path(key_path).parent
+    if parent.is_symlink():
+        raise StoreError(f"Refusing to use symlinked encryption key directory: {parent}")
+    descriptor: int | None = None
+    try:
+        if create:
+            parent.mkdir(parents=True, exist_ok=True, mode=ENCRYPTION_KEY_PARENT_MODE)
+        if not parent.exists():
+            return parent, None
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(parent, flags)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise StoreError(f"Encryption key parent is not a directory: {parent}")
+        if create:
+            os.fchmod(descriptor, ENCRYPTION_KEY_PARENT_MODE)
+        return parent, descriptor
+    except StoreError:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
+    except OSError as exc:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise StoreError(f"Cannot access encryption key directory {parent}: {exc}") from exc
+
+
+def _read_encryption_key_file(key_path: Path) -> bytes | None:
+    path = Path(key_path)
+    if path.is_symlink():
+        raise StoreError(f"Refusing to read encryption key through a symlink: {path}")
+    parent, parent_descriptor = _secure_encryption_key_parent(path, create=False)
+    if parent_descriptor is None:
+        return None
+    descriptor: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        try:
+            descriptor = os.open(path.name, flags, dir_fd=parent_descriptor)
+        except FileNotFoundError:
+            return None
+        if stat.S_IMODE(os.fstat(parent_descriptor).st_mode) != ENCRYPTION_KEY_PARENT_MODE:
+            raise StoreError(f"Encryption key directory must have mode 0700: {parent}")
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise StoreError(f"Encryption key path is not a regular file: {path}")
+        if stat.S_IMODE(metadata.st_mode) != ENCRYPTION_KEY_FILE_MODE:
+            raise StoreError(f"Encryption key file must have mode 0600: {path}")
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = None
+            raw_key = handle.read(ENCRYPTION_KEY_READ_LIMIT)
+    except StoreError:
+        raise
+    except OSError as exc:
+        raise StoreError(f"Cannot read encryption key file {path}: {exc}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent_descriptor)
+    try:
+        Fernet(raw_key)
+    except (TypeError, ValueError, binascii.Error) as exc:
+        raise StoreError(f"Configured encryption key file is malformed: {path}") from exc
+    return raw_key
+
+
+def configured_encryption_key(key_path: Path | None = None) -> bytes | None:
+    """Return the configured backup credential without creating one."""
+    password = os.environ.get(BACKUP_KEY_ENV)
+    if password:
+        try:
+            return password.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise StoreError(f"{BACKUP_KEY_ENV} must be valid UTF-8 text.") from exc
+    if key_path is None:
+        return None
+    return _read_encryption_key_file(Path(key_path))
+
+
+def has_configured_encryption_key(key_path: Path | None = None) -> bool:
+    return configured_encryption_key(key_path) is not None
+
+
+def generate_encryption_key(key_path: Path) -> bytes:
+    """Create a private Fernet key without replacing an existing key file."""
+    path = Path(key_path)
+    if path.is_symlink():
+        raise StoreError(f"Refusing to write encryption key through a symlink: {path}")
+    parent, parent_descriptor = _secure_encryption_key_parent(path, create=True)
+    if parent_descriptor is None:
+        raise StoreError(f"Cannot create encryption key directory: {parent}")
+    try:
+        try:
+            os.stat(path.name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            existing = _read_encryption_key_file(path)
+            if existing is None:
+                raise StoreError(f"Encryption key path disappeared: {path}")
+            return existing
+
+        generated = Fernet.generate_key()
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        for _ in range(8):
+            temporary_name = f".{path.name}.{secrets.token_hex(8)}.tmp"
+            descriptor: int | None = None
+            try:
+                descriptor = os.open(
+                    temporary_name,
+                    flags,
+                    ENCRYPTION_KEY_FILE_MODE,
+                    dir_fd=parent_descriptor,
+                )
+            except FileExistsError:
+                continue
+            try:
+                os.fchmod(descriptor, ENCRYPTION_KEY_FILE_MODE)
+                with os.fdopen(descriptor, "wb") as handle:
+                    descriptor = None
+                    handle.write(generated)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                try:
+                    os.link(
+                        temporary_name,
+                        path.name,
+                        src_dir_fd=parent_descriptor,
+                        dst_dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                except FileExistsError:
+                    existing = _read_encryption_key_file(path)
+                    if existing is None:
+                        raise StoreError(f"Encryption key path disappeared: {path}")
+                    return existing
+                return generated
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+                try:
+                    os.unlink(temporary_name, dir_fd=parent_descriptor)
+                except FileNotFoundError:
+                    pass
+        raise StoreError(f"Cannot create encryption key file {path}: temporary name collision")
+    except StoreError:
+        raise
+    except OSError as exc:
+        raise StoreError(f"Cannot create encryption key file {path}: {exc}") from exc
+    finally:
+        os.close(parent_descriptor)
+
 
 def encrypted_backup_filename(now: datetime | None = None) -> str:
     stamp = (now or datetime.now(UTC)).strftime("%Y%m%dT%H%M%SZ")
@@ -208,17 +370,14 @@ def encrypted_backup_destination(raw_destination: str | None, *, now: datetime |
     return destination
 
 
-def backup_password() -> bytes:
-    password = os.environ.get(BACKUP_KEY_ENV)
-    if not password:
+def backup_password(key_path: Path | None = None) -> bytes:
+    password = configured_encryption_key(key_path)
+    if password is None:
         raise StoreError(f"{BACKUP_KEY_ENV} is not set.")
-    try:
-        return password.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise StoreError(f"{BACKUP_KEY_ENV} must be valid UTF-8 text.") from exc
+    return password
 
 
-def backup_fernet(salt: bytes) -> Fernet:
+def backup_fernet(salt: bytes, key_path: Path | None = None) -> Fernet:
     try:
         key = Scrypt(
             salt=salt,
@@ -226,13 +385,17 @@ def backup_fernet(salt: bytes) -> Fernet:
             n=ENCRYPTED_BACKUP_SCRYPT_N,
             r=ENCRYPTED_BACKUP_SCRYPT_R,
             p=ENCRYPTED_BACKUP_SCRYPT_P,
-        ).derive(backup_password())
+        ).derive(backup_password(key_path))
         return Fernet(base64.urlsafe_b64encode(key))
     except UnsupportedAlgorithm as exc:
         raise StoreError("This system cannot derive encrypted-backup keys with Scrypt.") from exc
 
 
-def encrypted_backup_envelope(values: dict[str, str]) -> dict[str, Any]:
+def encrypted_backup_envelope(
+    values: dict[str, str],
+    *,
+    key_path: Path | None = None,
+) -> dict[str, Any]:
     salt = os.urandom(ENCRYPTED_BACKUP_SALT_BYTES)
     payload = {
         "variables": [
@@ -246,7 +409,7 @@ def encrypted_backup_envelope(values: dict[str, str]) -> dict[str, Any]:
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
-    ciphertext = backup_fernet(salt).encrypt(plaintext).decode("ascii")
+    ciphertext = backup_fernet(salt, key_path).encrypt(plaintext).decode("ascii")
     return {
         "schema": ENCRYPTED_BACKUP_SCHEMA,
         "schema_version": ENCRYPTED_BACKUP_SCHEMA_VERSION,
@@ -267,7 +430,12 @@ def encrypted_backup_envelope(values: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def write_encrypted_backup(destination: Path, values: dict[str, str]) -> dict[str, Any]:
+def write_encrypted_backup(
+    destination: Path,
+    values: dict[str, str],
+    *,
+    key_path: Path | None = None,
+) -> dict[str, Any]:
     if destination.exists() and destination.is_dir():
         raise StoreError(f"Backup destination is a directory: {destination}")
     if destination.is_symlink():
@@ -276,7 +444,7 @@ def write_encrypted_backup(destination: Path, values: dict[str, str]) -> dict[st
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if destination.parent.is_symlink():
             raise StoreError(f"Refusing to write encrypted backup through a symlinked directory: {destination.parent}")
-        envelope = encrypted_backup_envelope(values)
+        envelope = encrypted_backup_envelope(values, key_path=key_path)
         temporary_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -301,7 +469,7 @@ def write_encrypted_backup(destination: Path, values: dict[str, str]) -> dict[st
     return envelope
 
 
-def encrypted_backup_variables(path: Path) -> dict[str, str]:
+def encrypted_backup_variables(path: Path, *, key_path: Path | None = None) -> dict[str, str]:
     if path.is_symlink():
         raise StoreError(f"Refusing to read encrypted backup through a symlink: {path}")
     try:
@@ -346,9 +514,10 @@ def encrypted_backup_variables(path: Path) -> dict[str, str]:
     if len(salt) != ENCRYPTED_BACKUP_SALT_BYTES:
         raise StoreError("Encrypted backup has an invalid Scrypt salt.")
     try:
-        payload = json.loads(backup_fernet(salt).decrypt(ciphertext).decode("utf-8"))
+        payload = json.loads(backup_fernet(salt, key_path).decrypt(ciphertext).decode("utf-8"))
     except (InvalidToken, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise StoreError(f"Encrypted backup cannot be decrypted with {BACKUP_KEY_ENV}.") from exc
+        key_label = BACKUP_KEY_ENV if key_path is None else "configured encrypted-backup key"
+        raise StoreError(f"Encrypted backup cannot be decrypted with {key_label}.") from exc
     if not isinstance(payload, dict) or set(payload) != {"variables"} or not isinstance(payload["variables"], list):
         raise StoreError("Encrypted backup contains an invalid variable payload.")
     values: dict[str, str] = {}
@@ -759,6 +928,7 @@ class EnvironmentStore:
 
     def __post_init__(self) -> None:
         self.utility_dir = self.config_home / "envman"
+        self.encryption_key_path: Path = self.utility_dir / KEY_FILE_NAME
         self.target = self.utility_dir / "environment.conf"
         self.backup_dir = self.utility_dir / "backups"
         self.loader = self.utility_dir / "load-env.sh"
@@ -1303,6 +1473,38 @@ class EnvmanTUI:
         answer = self.prompt(f"{question} [y/N]")
         return answer is not None and answer.strip().lower() in {"y", "yes"}
 
+    def confirm_modal(self, question: str) -> bool:
+        """Show a centered, explicit approval dialog for consequential setup."""
+        while True:
+            height, width = self.screen.getmaxyx()
+            if height >= MIN_TUI_HEIGHT and width >= MIN_TUI_WIDTH:
+                break
+            self._set_cursor_visibility(False)
+            self._draw_size_error(height, width)
+            if self.screen.get_wch() in ("\x1b", 27):
+                return False
+        height, width = self.screen.getmaxyx()
+        available = max(12, width - 8)
+        lines = textwrap.wrap(question, width=available) or [""]
+        footer = "Y Yes   N No   Esc Cancel"
+        box_width = min(width - 2, max(len(footer) + 4, max(map(len, lines)) + 4))
+        box_height = min(height - 2, len(lines) + 4)
+        top = max(0, (height - box_height) // 2)
+        left = max(0, (width - box_width) // 2)
+        self.screen.addnstr(top, left, "+" + "-" * max(0, box_width - 2) + "+", box_width)
+        for index, line in enumerate(lines[: max(1, box_height - 3)], start=1):
+            self.screen.addnstr(top + index, left, f"| {line}".ljust(box_width - 1) + "|", box_width)
+        footer_row = top + box_height - 2
+        self.screen.addnstr(footer_row, left, f"| {footer}".ljust(box_width - 1) + "|", box_width)
+        self.screen.addnstr(top + box_height - 1, left, "+" + "-" * max(0, box_width - 2) + "+", box_width)
+        self.screen.refresh()
+        while True:
+            answer = self.screen.get_wch()
+            if answer in ("y", "Y"):
+                return True
+            if answer in ("n", "N", "\n", "\r", "\x1b", 27):
+                return False
+
     def _select_catalog_name(self, name: str | None) -> None:
         names = self.catalog_names()
         if name is not None and name in names:
@@ -1595,7 +1797,7 @@ class EnvmanTUI:
             return
         try:
             destination = encrypted_backup_destination(raw_destination)
-            write_encrypted_backup(destination, values)
+            write_encrypted_backup(destination, values, key_path=self.store.encryption_key_path)
         except StoreError as exc:
             self.status = str(exc)
             return
@@ -1608,7 +1810,10 @@ class EnvmanTUI:
             self.status = "Encrypted backup import cancelled."
             return
         try:
-            environment = encrypted_backup_variables(Path(raw_source).expanduser())
+            environment = encrypted_backup_variables(
+                Path(raw_source).expanduser(),
+                key_path=self.store.encryption_key_path,
+            )
         except StoreError as exc:
             self.status = str(exc)
             return
@@ -1626,10 +1831,33 @@ class EnvmanTUI:
         self.status = preview.status
 
 
+    def ensure_encryption_key(self) -> None:
+        key_path = self.store.encryption_key_path
+        try:
+            if configured_encryption_key(key_path) is not None:
+                return
+        except StoreError as exc:
+            self.status = str(exc)
+            return
+        if not self.confirm_modal(
+            "No configured ENVMAN_BACKUP_KEY was found; generation will create a new private key. Generate now?"
+        ):
+            self.status = (
+                f"No configured ENVMAN_BACKUP_KEY found; private key generation skipped (key path: {key_path})."
+            )
+            return
+        try:
+            generate_encryption_key(key_path)
+        except StoreError as exc:
+            self.status = str(exc)
+            return
+        self.status = f"Generated private encryption key at {key_path}."
+
     def run(self) -> bool:
         self._set_cursor_visibility(False)
         self.configure_colors()
         self.screen.keypad(True)
+        self.ensure_encryption_key()
         while True:
             self.draw()
             key = self.screen.get_wch()
@@ -2238,7 +2466,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
 
     export_parser = command(
         "export",
-        help=f"Write all managed variables as an encrypted JSON backup using ${BACKUP_KEY_ENV}.",
+        help=f"Write all managed variables as an encrypted JSON backup using ${BACKUP_KEY_ENV} or the private key file.",
     )
     export_parser.add_argument(
         "destination",
@@ -2248,7 +2476,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
 
     backup_import_parser = command(
         "import-backup",
-        help=f"Preview or explicitly import variables from an encrypted JSON backup using ${BACKUP_KEY_ENV}.",
+        help=f"Preview or explicitly import variables from an encrypted JSON backup using ${BACKUP_KEY_ENV} or the private key file.",
     )
     backup_import_parser.add_argument("path", help="Encrypted backup JSON file.")
     backup_import_parser.add_argument("names", nargs="*", metavar="NAME", help="Preview or import only these names.")
@@ -2264,6 +2492,29 @@ def build_cli_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="Accept and suppress advisory warnings; does not bypass validation or collision protection.",
+    )
+
+    key_parser = command(
+        "key",
+        help="Report or explicitly generate the encrypted-backup key.",
+        allow_abbrev=False,
+    )
+    key_parser.allow_abbrev = False
+    key_parser.add_argument(
+        "--generate",
+        action="store_true",
+        help="Request creation of the private encrypted-backup key file.",
+    )
+    key_parser.add_argument(
+        "--approve-key-generation",
+        action="store_true",
+        help="Explicitly approve creation of a new private encrypted-backup key.",
+    )
+    key_parser.add_argument(
+        "--force",
+        "--yes",
+        action="store_true",
+        help=argparse.SUPPRESS,
     )
 
     set_parser = command("set", help="Create or replace one managed variable.")
@@ -2548,8 +2799,58 @@ def run_update_cli(arguments: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def run_key_cli(arguments: argparse.Namespace, store: EnvironmentStore) -> int:
+    key_path = store.encryption_key_path
+    try:
+        configured = configured_encryption_key(key_path)
+    except StoreError as exc:
+        raise CommandError(str(exc), EXIT_FAILURE) from exc
+    if getattr(arguments, "force", False):
+        raise CommandError("--yes/--force are not approval for key generation; use --approve-key-generation.")
+    if arguments.approve_key_generation and not arguments.generate:
+        raise CommandError("--approve-key-generation requires --generate.")
+    if arguments.generate and not arguments.approve_key_generation:
+        raise CommandError("Key generation requires --approve-key-generation.")
+
+    source = "environment" if os.environ.get(BACKUP_KEY_ENV) else "file"
+    if configured is not None:
+        result = {"action": "key", "path": str(key_path), "status": "unchanged"}
+        emit_cli(
+            result,
+            arguments.json,
+            (
+                f"Encrypted-backup key unchanged; using {BACKUP_KEY_ENV} "
+                f"(private key path: {key_path})."
+                if source == "environment"
+                else f"Encrypted-backup key unchanged at {key_path}."
+            ),
+        )
+        return EXIT_SUCCESS
+    if not arguments.generate:
+        result = {"action": "key", "path": str(key_path), "status": "missing"}
+        emit_cli(
+            result,
+            arguments.json,
+            f"No configured {BACKUP_KEY_ENV} found; no private key is configured at {key_path}.",
+        )
+        return EXIT_SUCCESS
+    try:
+        generate_encryption_key(key_path)
+    except StoreError as exc:
+        raise CommandError(str(exc), EXIT_FAILURE) from exc
+    result = {"action": "key", "path": str(key_path), "status": "created"}
+    emit_cli(
+        result,
+        arguments.json,
+        f"Generated private encrypted-backup key at {key_path}.",
+    )
+    return EXIT_SUCCESS
+
+
 def run_cli(arguments: argparse.Namespace, store: EnvironmentStore) -> int:
     command = arguments.command
+    if command == "key":
+        return run_key_cli(arguments, store)
     if command == "init":
         store.install_loaders()
         emit_cli(
@@ -2586,7 +2887,11 @@ def run_cli(arguments: argparse.Namespace, store: EnvironmentStore) -> int:
     if command == "export":
         try:
             destination = encrypted_backup_destination(arguments.destination)
-            envelope = write_encrypted_backup(destination, store.values)
+            envelope = write_encrypted_backup(
+                destination,
+                store.values,
+                key_path=store.encryption_key_path,
+            )
         except StoreError as exc:
             raise CommandError(str(exc), EXIT_FAILURE) from exc
         emit_cli(
@@ -2612,7 +2917,10 @@ def run_cli(arguments: argparse.Namespace, store: EnvironmentStore) -> int:
         )
     if command == "import-backup":
         try:
-            environment = encrypted_backup_variables(Path(arguments.path).expanduser())
+            environment = encrypted_backup_variables(
+                Path(arguments.path).expanduser(),
+                key_path=store.encryption_key_path,
+            )
         except StoreError as exc:
             raise CommandError(str(exc), EXIT_FAILURE) from exc
         return run_cli_import(

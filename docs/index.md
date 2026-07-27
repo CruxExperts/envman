@@ -6,11 +6,11 @@ description: Manage persistent environment variables from a Linux terminal UI or
 
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
-    <p class="status">release 0.1.6</p>
+    <p class="status">release 0.1.7</p>
     <h1 id="hero-title">Manage persistent environment variables from a terminal UI or CLI.</h1>
     <p>Envman keeps a validated set of per-user variables in one managed file. Use the full-height terminal UI for interactive work or the CLI for repeatable commands and JSON output.</p>
     <div class="actions" aria-label="Primary actions">
-      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.6</a>
+      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.7</a>
       <a class="button secondary" href="{{ '/guides/tui' | relative_url }}">Terminal UI</a>
       <a class="button secondary" href="{{ '/guides/cli' | relative_url }}">CLI reference</a>
     </div>
@@ -35,7 +35,7 @@ description: Manage persistent environment variables from a Linux terminal UI or
   </section>
   <section>
     <h3>Encrypted migration</h3>
-    <p>Export an authenticated encrypted JSON backup with <code>ENVMAN_BACKUP_KEY</code>. The TUI can back up the selected variables; the CLI exports the managed set.</p>
+    <p>Export an authenticated encrypted JSON backup. An explicit <code>ENVMAN_BACKUP_KEY</code> takes precedence; otherwise Envman uses only an approved private fallback. The TUI can back up selected variables; the CLI exports the managed set.</p>
   </section>
 </div>
 
@@ -45,10 +45,11 @@ description: Manage persistent environment variables from a Linux terminal UI or
 - Sensitive values are masked at the edges: 4+4 characters for values at least 16 characters long, 2+2 for 10-15, and 1+1 for 6-9. Sensitive values shorter than six characters are rejected.
 - Normal output masks sensitive values. `--reveal` is an explicit opt-in for a caller that can protect the output.
 - Import previews changes before applying them. `--force` accepts advisory warnings but does not bypass validation or collision protection.
+- Fallback key generation requires explicit approval; automation uses `envman key --generate --approve-key-generation`, not `--yes` or `--force`.
 
 ## Install a verified release
 
-Envman 0.1.6 requires Linux x86_64, CPython 3.12, and `uv >=0.11,<0.12`:
+Envman 0.1.7 requires Linux x86_64, CPython 3.12, and `uv >=0.11,<0.12`:
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
@@ -56,7 +57,7 @@ ENVMAN="$(uv tool dir --bin)/envman"
 "$ENVMAN" --version
 ```
 
-The standalone installer verifies the GitHub release manifest, immutable asset URLs, SHA-256 hashes, wheel metadata, runtime constraints, and the selected `uv` runtime before installing with `uv tool install --no-build`. It resolves the installed command through `uv tool dir --bin`, so installation and verification succeed even if that directory is not yet in `PATH`. It records an installation receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; receipts created by the 0.1.6 installer record `installer_version: 0.1.6`, and updates use that recorded provider and do not silently switch channels. [Read the installation trust boundary.]({{ '/reference/install-source-and-updates' | relative_url }})
+The standalone installer verifies the GitHub release manifest, immutable asset URLs, SHA-256 hashes, wheel metadata, runtime constraints, and the selected `uv` runtime before installing with `uv tool install --no-build`. It resolves the installed command through `uv tool dir --bin`, so installation and verification succeed even if that directory is not yet in `PATH`. It records an installation receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; receipts created by the 0.1.7 installer record `installer_version: 0.1.7`, and updates use that recorded provider and do not silently switch channels. [Read the installation trust boundary.]({{ '/reference/install-source-and-updates' | relative_url }})
 
 ## Where state lives
 
@@ -64,6 +65,7 @@ The standalone installer verifies the GitHub release manifest, immutable asset U
 ${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf
   -> load-env.sh and shell-specific loaders
   -> backups/ (local tar.gz snapshots before managed-file writes)
+  -> ${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key (optional private mode-0600 encrypted-backup fallback; never created or replaced silently)
 
 ${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json
   -> installer receipt used by verified updates

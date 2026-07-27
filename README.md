@@ -1,5 +1,5 @@
 # Envman
-**Version:** 0.1.6
+**Version:** 0.1.7
 
 Envman manages durable, per-user environment variables on Linux. Use the terminal UI to inspect and edit them, or the CLI to validate and automate changes without putting values in shell startup files by hand.
 
@@ -21,6 +21,7 @@ ENVMAN="$(uv tool dir --bin)/envman"
 The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`. It does not silently change installation providers when an installation receipt is missing or invalid.
 
 The resolved executable command works even when the uv tool directory is not yet in `PATH`; after adding that directory to `PATH`, invoke it as `envman`.
+The installer itself never generates an encrypted-backup key. Key setup happens at first runtime or through the explicit key command, with approval required before a fallback key is created.
 
 ### Optional agent skill
 
@@ -42,7 +43,7 @@ The immutable `v0.1.5` release predates this optional skill asset; use a release
 "$ENVMAN"
 ```
 
-With no command, Envman opens the TUI. A new store starts empty; press `A` to add a variable. The catalog uses the available terminal height and requires at least 80 columns by 18 rows. Press `Q` or `Esc` to leave the catalog and start a child shell with the managed environment.
+With no command, Envman opens the TUI. A new store starts empty; press `A` to add a variable. At TUI startup, if `ENVMAN_BACKUP_KEY` is not configured and no fallback key exists, Envman clearly prompts before generating one. Declining leaves state unchanged and encrypted-backup operations unavailable. The catalog uses the available terminal height and requires at least 80 columns by 18 rows. Press `Q` or `Esc` to leave the catalog and start a child shell with the managed environment.
 
 The CLI is available when an interactive terminal is not appropriate:
 
@@ -56,7 +57,7 @@ The CLI is available when an interactive terminal is not appropriate:
 - `Up`/`Down` moves focus. `Space` toggles the focused variable, so several variables can be selected.
 - `C` copies one source value into every selected variable; with no selection it targets the focused variable.
 - `D` deletes the selected variables; with no selection it targets the focused variable.
-- `B` writes an encrypted backup of the selected variables, or all managed variables when nothing is selected.
+- `B` writes an encrypted backup of the selected variables, or all managed variables when nothing is selected; it is unavailable until an approved backup key is available.
 - `A` adds, `E` or `Enter` edits, and `R` renames the focused variable.
 - `O` changes ordering, `F` sets a filter, `M` changes filter scope, and `[`/`]` scrolls details.
 - `I` previews process-environment imports. `J` previews an encrypted-backup import.
@@ -80,7 +81,9 @@ envman export backup.json
 envman import-backup backup.json --all --apply
 ```
 
-Set `ENVMAN_BACKUP_KEY` through a secure mechanism before export or import. Do not put that password, a backup file, or managed values in source control.
+When `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. Otherwise Envman may use `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`, a private mode-`0600` fallback. Envman never creates or replaces that file silently: TUI startup prompts before generation, and declining leaves state unchanged with encrypted-backup operations unavailable.
+
+For automation or AI agents, generate a fallback only with `envman key --generate --approve-key-generation`. `--yes` and `--force` are not approval. This command never prints key material, preserves an existing key file, and fails closed for a malformed key file. Do not put a key, backup file, or managed values in source control.
 
 ## Updates and removal
 
