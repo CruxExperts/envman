@@ -162,7 +162,7 @@ def parse_manifest(raw: bytes, *, manifest_url: str = LATEST_MANIFEST_URL) -> Re
     python_spec = compatibility["python"]
     platform_spec = compatibility["platform"]
     uv_spec = compatibility["uv"]
-    if python_spec != ">=3.12,<3.13" or platform_spec != "linux-x86_64" or uv_spec != ">=0.11,<0.12":
+    if python_spec != ">=3.12,<3.13" or platform_spec != "linux-x86_64" or uv_spec != ">=0.11":
         raise ReleaseProtocolError("Release compatibility is unsupported.")
     assets = _expect_mapping(document["assets"], "assets")
     if not {"wheel", "runtime_constraints"} <= set(assets) or set(assets) - {"wheel", "runtime_constraints", "skill"}:
@@ -586,8 +586,8 @@ def verify_runtime(*, runner: Runner = default_runner, system: str | None = None
     if not (match := UV_VERSION.search(output)):
         raise ReleaseProtocolError("Could not determine the uv version.")
     version = tuple(int(component) for component in match.groups())
-    if not ((0, 11, 0) <= version < (0, 12, 0)):
-        raise ReleaseProtocolError("Envman releases require uv >=0.11,<0.12.")
+    if version < (0, 11, 0):
+        raise ReleaseProtocolError("Envman releases require uv >=0.11.")
     return ".".join(match.groups())
 
 

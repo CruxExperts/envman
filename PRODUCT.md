@@ -10,7 +10,7 @@ Envman is for developers and operators who work across shells or machines and ne
 
 ## Supported scope
 
-Release installation currently supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`. The managed store is per user. A save writes the Envman configuration file and maintains marked loaders for supported POSIX shells and Fish; when replacing an existing file, Envman creates a local mode-`0600` snapshot.
+Release installation currently supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11`. The managed store is per user. A save writes the Envman configuration file and maintains marked loaders for supported POSIX shells and Fish; when replacing an existing file, Envman creates a local mode-`0600` snapshot.
 
 Sensitive names and password-bearing URLs are masked in ordinary output. When explicitly configured, encrypted backups use `ENVMAN_BACKUP_KEY`. If it is unset, Envman may use a generated private fallback at `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key` (mode `0600`); the fallback is separate from the unencrypted on-disk configuration and automatic local snapshots.
 

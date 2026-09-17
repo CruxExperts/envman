@@ -17,7 +17,7 @@ This checklist records the immutable Envman 0.1.5 release procedure. Do not reru
 ## Local source and documentation checks
 
 - [ ] `VERSION`, the README version display, package metadata, and the intended `v0.1.5` tag agree.
-- [ ] `uv sync --locked --group dev` succeeds with the repository's required `uv 0.11.21`.
+- [ ] `uv sync --locked --group dev` succeeds with uv 0.11 or newer.
 - [ ] `uv run --locked --no-sync python -m unittest discover -s tests -p 'test_*.py'` passes.
 - [ ] `uv run --locked --no-sync python -m py_compile src/envman/*.py scripts/*.py install.py` passes.
 - [ ] `uv run --locked --no-sync python scripts/version.py check` passes after parsing the canonical release protocol and confirming `INSTALLER_VERSION == VERSION`, without a README/VERSION mismatch.

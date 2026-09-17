@@ -36,7 +36,7 @@ Encrypted backups prefer the `ENVMAN_BACKUP_KEY` environment variable and otherw
 
 ## Release protocol
 
-The generated installer and the `update` command share `_release_protocol.py`. They accept only the exact release-manifest schema for `CruxExperts/envman`, Linux x86_64, Python `>=3.12,<3.13`, and `uv >=0.11,<0.12`. Manifest assets must use immutable GitHub release URLs and declare bounded sizes and lowercase SHA-256 hashes. Downloads accept only GitHub-controlled HTTPS redirects; the wheel's Envman name and version, and every runtime constraint pin, are checked before installation.
+The generated installer and the `update` command share `_release_protocol.py`. They accept only the exact release-manifest schema for `CruxExperts/envman`, Linux x86_64, Python `>=3.12,<3.13`, and `uv >=0.11`. Manifest assets must use immutable GitHub release URLs and declare bounded sizes and lowercase SHA-256 hashes. Downloads accept only GitHub-controlled HTTPS redirects; the wheel's Envman name and version, and every runtime constraint pin, are checked before installation.
 
 Installation uses `uv tool install --no-build` and writes a private receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, manifest URL, asset metadata, installer version, `uv` version, and timestamp. Replacing an existing Envman tool requires a valid Envman receipt; updates use the recorded provider and refuse a downgrade. A failed replacement attempts to restore the previous wheel and receipt.
 

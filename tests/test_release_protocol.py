@@ -41,7 +41,7 @@ def manifest_bytes(version: str = "0.1.0") -> tuple[bytes, dict[str, bytes]]:
         "schema_version": 1,
         "version": version,
         "repository": release.REPOSITORY,
-        "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11,<0.12"},
+        "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11"},
         "assets": {"wheel": asset(f"envman-{version}-py3-none-any.whl", wheel, version), "runtime_constraints": asset("runtime-constraints.txt", constraints, version)},
     }
     encoded = json.dumps(payload).encode()
@@ -66,6 +66,25 @@ class ReleaseProtocolTests(unittest.TestCase):
         self.assertEqual(parsed.version, "0.1.0")
         self.assertEqual(parsed.constraints.filename, "runtime-constraints.txt")
 
+
+    def test_runtime_accepts_newer_uv_without_an_upper_bound(self) -> None:
+        def runner(argv: list[str]) -> str:
+            self.assertEqual(argv, ["uv", "--version"])
+            return "uv 0.12.10"
+
+        self.assertEqual(
+            release.verify_runtime(runner=runner, system="Linux", machine="x86_64", python_info=(3, 12)),
+            "0.12.10",
+        )
+
+    def test_runtime_rejects_uv_below_minimum(self) -> None:
+        with self.assertRaisesRegex(release.ReleaseProtocolError, r"uv >=0\.11"):
+            release.verify_runtime(
+                runner=lambda _argv: "uv 0.10.9",
+                system="Linux",
+                machine="x86_64",
+                python_info=(3, 12),
+            )
 
     def test_installed_package_version_comes_from_distribution_metadata(self) -> None:
         from envman import cli
@@ -321,7 +340,7 @@ class ReleaseProtocolTests(unittest.TestCase):
                     "schema_version": 1,
                     "version": "0.1.0",
                     "repository": release.REPOSITORY,
-                    "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11,<0.12"},
+                    "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11"},
                     "assets": {
                         "wheel": asset("envman-0.1.0-py3-none-any.whl", wheel_bytes()),
                         "runtime_constraints": asset("runtime-constraints.txt", b"cryptography==49.0.0\n"),
@@ -357,7 +376,7 @@ class ReleaseProtocolTests(unittest.TestCase):
                     "schema_version": 1,
                     "version": "0.1.0",
                     "repository": release.REPOSITORY,
-                    "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11,<0.12"},
+                    "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11"},
                     "assets": {
                         "wheel": asset("envman-0.1.0-py3-none-any.whl", wheel_bytes()),
                         "runtime_constraints": asset("runtime-constraints.txt", b"cryptography==49.0.0\n"),

@@ -93,7 +93,7 @@ def main() -> int:
         "schema_version": 1,
         "version": args.version,
         "repository": REPOSITORY,
-        "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11,<0.12"},
+        "compatibility": {"python": ">=3.12,<3.13", "platform": "linux-x86_64", "uv": ">=0.11"},
         "assets": assets(args.version, output),
     }
     legacy_manifest = {**manifest, "assets": {key: value for key, value in manifest["assets"].items() if key != "skill"}}

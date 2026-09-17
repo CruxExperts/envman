@@ -3,7 +3,7 @@
 
 Envman manages durable, per-user environment variables on Linux. Use the terminal UI to inspect and edit them, or the CLI to validate and automate changes without putting values in shell startup files by hand.
 
-- Linux x86_64 releases for CPython 3.12 and `uv >=0.11,<0.12`
+- Linux x86_64 releases for CPython 3.12 and `uv >=0.11`
 - A verified GitHub-release installer and receipt-directed updates
 - A curses TUI and a scriptable CLI with JSON output
 - Encrypted backup export and selective import
@@ -14,11 +14,9 @@ The release installer checks the GitHub manifest, immutable asset URLs, sizes, S
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
-ENVMAN="$(uv tool dir --bin)/envman"
-"$ENVMAN" --version
 ```
 
-The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11,<0.12`. It does not silently change installation providers when an installation receipt is missing or invalid.
+The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11`. It is one command for Ubuntu servers with Python 3.12 and uv already installed; it does not silently change installation providers when an installation receipt is missing or invalid.
 
 The resolved executable command works even when the uv tool directory is not yet in `PATH`; after adding that directory to `PATH`, invoke it as `envman`.
 The installer itself never generates an encrypted-backup key. Key setup happens at first runtime or through the explicit key command, with approval required before a fallback key is created.

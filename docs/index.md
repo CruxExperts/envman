@@ -49,12 +49,10 @@ description: Manage persistent environment variables from a Linux terminal UI or
 
 ## Install a verified release
 
-Envman 0.1.7 requires Linux x86_64, CPython 3.12, and `uv >=0.11,<0.12`:
+Envman 0.1.7 requires Linux x86_64, CPython 3.12, and `uv >=0.11`:
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
-ENVMAN="$(uv tool dir --bin)/envman"
-"$ENVMAN" --version
 ```
 
 The standalone installer verifies the GitHub release manifest, immutable asset URLs, SHA-256 hashes, wheel metadata, runtime constraints, and the selected `uv` runtime before installing with `uv tool install --no-build`. It resolves the installed command through `uv tool dir --bin`, so installation and verification succeed even if that directory is not yet in `PATH`. It records an installation receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; receipts created by the 0.1.7 installer record `installer_version: 0.1.7`, and updates use that recorded provider and do not silently switch channels. [Read the installation trust boundary.]({{ '/reference/install-source-and-updates' | relative_url }})

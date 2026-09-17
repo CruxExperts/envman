@@ -7,7 +7,7 @@ title: Testing
 
 ## Locked development environment
 
-The project targets CPython 3.12 and pins the development toolchain through `pyproject.toml` and `uv.lock` (`uv 0.11.21`). Start from a clean checkout with:
+The project targets CPython 3.12 and requires at least uv 0.11 for the development toolchain through `pyproject.toml` and `uv.lock`. Start from a clean checkout with:
 
 ```bash
 uv sync --locked --group dev
