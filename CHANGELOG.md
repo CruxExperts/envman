@@ -2,6 +2,18 @@
 
 All notable changes are documented here.
 
+## [0.1.8] - 2026-09-17
+
+### Added
+
+- Support current `uv` releases with a minimum requirement of `uv >=0.11` and no upper bound.
+- Provide a single-command Ubuntu server installation path for Python 3.12 and `uv`.
+
+### Changed
+
+- Update the verified installer and release manifest compatibility metadata to remove the obsolete `uv <0.12` restriction.
+- Refresh pinned build and runtime dependencies and GitHub Actions used by release and Pages workflows.
+
 ## [0.1.7] - 2026-07-27
 
 ### Added

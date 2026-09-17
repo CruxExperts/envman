@@ -5,7 +5,7 @@ title: Install Envman
 
 # Install Envman
 
-Envman 0.1.7 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11`. The installer is a single command that works on Ubuntu servers with Python 3.12 and uv already installed:
+Envman 0.1.8 supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11`. The installer is a single command that works on Ubuntu servers with Python 3.12 and uv already installed:
 
 ```bash
 uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
@@ -43,7 +43,7 @@ envman update --check --json
 envman update
 ```
 
-After installation, Envman writes an atomic mode-`0600` receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, repository, manifest URL, verified wheel and constraints assets, installer and `uv` versions; receipts created by the 0.1.7 installer record `installer_version: 0.1.7`. Updates use only the recorded provider and manifest source.
+After installation, Envman writes an atomic mode-`0600` receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, repository, manifest URL, verified wheel and `uv` versions; receipts created by the 0.1.8 installer record `installer_version: 0.1.8`. Updates use only the recorded provider and manifest source.
 
 `update --check` reports `current` or `update-available` without changing the tool. `update` refuses a downgrade and does not reinstall the same version. It verifies the candidate assets before installation and keeps the previous verified wheel, constraints, and receipt available for rollback if replacement fails. A missing, malformed, symlinked, or untrusted receipt is a trust error; Envman does not silently switch update channels.
 
