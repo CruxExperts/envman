@@ -59,7 +59,7 @@ documents:
     category_label: Development
     category_slug: development
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: reference
     tags: [architecture, package]
   - id: development-testing

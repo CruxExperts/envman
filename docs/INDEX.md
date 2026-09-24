@@ -19,7 +19,7 @@
 
 ## Development
 
-- [Architecture](development/architecture.md) - ACTIVE `reference`; tags: `architecture`, `package`; updated 2026-07-20.
+- [Architecture](development/architecture.md) - ACTIVE `reference`; tags: `architecture`, `package`; updated 2026-09-24.
 - [Testing](development/testing.md) - ACTIVE `how_to`; tags: `testing`, `unittest`; updated 2026-07-20.
 - [Versioning and releases](development/versioning-and-releases.md) - ACTIVE `reference`; tags: `versioning`, `releases`; updated 2026-07-20.
 
