@@ -3,7 +3,7 @@ name: envman-environment-variable-manager
 description: Manage Envman CLI and terminal UI workflows for durable environment variables, process or encrypted-backup imports, shell loaders, encrypted backups, verified GitHub installation or updates, and receipt behavior. Use for Envman commands, TUI controls, managed-variable safety, migration, or release updates; do not use for generic shell questions unrelated to Envman.
 ---
 
-<!-- envman-skill-lock: version=0.1.9 source=src/envman/cli.py -->
+<!-- envman-skill-lock: version=0.1.10 source=src/envman/cli.py -->
 
 # Envman
 
@@ -231,8 +231,8 @@ or `update --check` to reconcile the observed state first.
 
 ## Canonical documentation
 
-- [CLI reference](https://github.com/CruxExperts/envman/blob/v0.1.9/docs/guides/cli.md)
-- [Encrypted backups and migration](https://github.com/CruxExperts/envman/blob/v0.1.9/docs/guides/backups-and-migration.md)
-- [Terminal UI guide](https://github.com/CruxExperts/envman/blob/v0.1.9/docs/guides/tui.md)
-- [Storage and shell loading](https://github.com/CruxExperts/envman/blob/v0.1.9/docs/reference/storage-and-shell-loading.md)
-- [Installation sources and updates](https://github.com/CruxExperts/envman/blob/v0.1.9/docs/reference/install-source-and-updates.md)
+- [CLI reference](https://github.com/CruxExperts/envman/blob/v0.1.10/docs/guides/cli.md)
+- [Encrypted backups and migration](https://github.com/CruxExperts/envman/blob/v0.1.10/docs/guides/backups-and-migration.md)
+- [Terminal UI guide](https://github.com/CruxExperts/envman/blob/v0.1.10/docs/guides/tui.md)
+- [Storage and shell loading](https://github.com/CruxExperts/envman/blob/v0.1.10/docs/reference/storage-and-shell-loading.md)
+- [Installation sources and updates](https://github.com/CruxExperts/envman/blob/v0.1.10/docs/reference/install-source-and-updates.md)
