@@ -8,7 +8,7 @@
 
 ## Guides
 
-- [Terminal UI](guides/tui.md) - ACTIVE `guide`; tags: `tui`, `curses`; updated 2026-07-20.
+- [Terminal UI](guides/tui.md) - ACTIVE `guide`; tags: `tui`, `curses`; updated 2026-09-24.
 - [CLI reference](guides/cli.md) - ACTIVE `reference`; tags: `cli`, `automation`, `json`; updated 2026-09-24.
 - [Encrypted backups and migration](guides/backups-and-migration.md) - ACTIVE `guide`; tags: `backups`, `encryption`, `migration`; updated 2026-09-24.
 
@@ -25,4 +25,4 @@
 
 ## Governance
 
-- [Publishing checklist](governance/publishing-checklist.md) - ACTIVE `checklist`; tags: `publishing`, `github`; updated 2026-07-20.
+- [Historical v0.1.5 publishing checklist](governance/publishing-checklist.md) - ACTIVE `checklist`; tags: `publishing`, `github`; updated 2026-09-24.

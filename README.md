@@ -1,109 +1,117 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-light.svg">
+    <img src="docs/assets/logo-light.svg" width="420" alt="Envman">
+  </picture>
+</p>
+
 # Envman
+
+[![CI](https://github.com/CruxExperts/envman/actions/workflows/ci.yml/badge.svg)](https://github.com/CruxExperts/envman/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/CruxExperts/envman/actions/workflows/codeql.yml/badge.svg)](https://github.com/CruxExperts/envman/actions/workflows/codeql.yml)
+[![Pages](https://github.com/CruxExperts/envman/actions/workflows/pages.yml/badge.svg)](https://cruxexperts.github.io/envman/)
+
 **Version:** 0.1.8
 
-Envman manages durable, per-user environment variables on Linux. Use the terminal UI to inspect and edit them, or the CLI to validate and automate changes without putting values in shell startup files by hand.
+Envman manages durable, per-user environment variables on Linux. Use the terminal UI for deliberate local edits or the CLI for repeatable commands and JSON output. Values live in one managed location, so shell startup files stay readable.
 
-- Linux x86_64 releases for CPython 3.12 and `uv >=0.11`
-- A verified GitHub-release installer and receipt-directed updates
-- A curses TUI and a scriptable CLI with JSON output
-- Encrypted managed storage, encrypted backup export, and selective import
+> [!IMPORTANT]
+> Release installation currently supports Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11`.
 
-## Install
+## Install and open
 
-The release installer checks the GitHub manifest, immutable asset URLs, sizes, SHA-256 hashes, wheel metadata, runtime constraints, and the local runtime before it installs the wheel.
+The release installer verifies immutable asset URLs, sizes, SHA-256 hashes, wheel metadata, runtime constraints, and the local host before installing the wheel.
 
 ```bash
-uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
+uv run --python 3.12 --script \
+  https://github.com/CruxExperts/envman/releases/latest/download/install.py
+
+export PATH="$(uv tool dir --bin):$PATH"
+envman
 ```
 
-The installer currently accepts Linux x86_64, CPython `>=3.12,<3.13`, and `uv >=0.11`. It is one command for Ubuntu servers with Python 3.12 and uv already installed; it does not silently change installation providers when an installation receipt is missing or invalid.
+A new store starts empty. Press `A` to add the first variable. Press `Q` or `Esc` when you are ready to leave the catalog and start a child shell with the managed environment.
 
-The resolved executable command works even when the uv tool directory is not yet in `PATH`; after adding that directory to `PATH`, invoke it as `envman`.
-The installer itself never generates an encrypted-backup key. Key setup happens at first runtime or through the explicit key command, with approval required before a fallback key is created.
+![Envman terminal catalog showing a project path, service URL, masked API token, focused-row details, and keyboard controls](docs/assets/terminal-preview.svg)
 
-### Optional agent skill
+## Why Envman
 
-Releases that include the optional agent skill can install it alongside Envman:
+- The TUI and CLI use the same validation, masking, and persistence rules.
+- Values classified as sensitive by their names, plus password-bearing URLs, stay masked in ordinary output.
+- Imports show a preview before `--apply` writes any change.
+- New saves encrypt the managed configuration with a separate private storage key.
+- Encrypted exports use an independent backup credential.
+- Updates follow the verified provider recorded in the installation receipt.
+
+Envman is a local operator tool. It does not provide hosted sync, team access control, remote secret storage, or a replacement for an operating-system credential store.
+
+## Use the interface that fits the job
+
+| Terminal UI | Scriptable CLI |
+| --- | --- |
+| `Up` and `Down` move focus. `Space` builds a selection. | `envman list --json` returns stable machine-readable output. |
+| `A`, `Enter`, and `R` add, edit, and rename. | `set`, `unset`, and `rename` make explicit changes. |
+| `I` and `J` preview process or encrypted-backup imports. | Import commands preview first and require `--apply` to save. |
+| `B` backs up selected variables, or the full set when none are selected. | `export` writes an authenticated encrypted JSON backup. |
+
+Common CLI commands:
 
 ```bash
-uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py --install-skill
+envman set PROJECT_URL --value https://example.test
+envman get PROJECT_URL
+envman list --json
+envman validate API_TOKEN --stdin
+envman check --json
 ```
 
-With neither `--install-skill` nor `--no-install-skill`, the installer prompts only when stdin and stdout are terminals; an empty interactive answer defaults to **Yes**. In a non-TTY it never blocks and defaults to **No**. Use `--no-install-skill` to explicitly decline, or `--install-skill` to force installation.
+Use `--stdin` for values that should not appear in shell history. Use `envman --nocolor` when the terminal cannot use curses color pairs.
 
-The skill is installed only inside the selected repository: the installer walks upward from the current directory to the nearest `.git` directory (or uses the current directory when none is found). It installs one verified `envman-environment-variable-manager-skill.md` asset into each existing supported repo-local root among `.agents/skills`, `.codex/skills`, `.claude/skills`, `.cursor/skills`, `.gemini/skills`, and `.opencode/skills`; when none exists, it creates `.agents/skills`. Within each root, the destination is `envman-environment-variable-manager/SKILL.md`. It refuses symlinked or escaping paths and does not replace an unmarked existing skill.
+## Storage and masking
 
-The immutable `v0.1.5` release predates this optional skill asset; use a release that includes it when enabling skill installation.
+Envman stores assignments under `${XDG_CONFIG_HOME:-$HOME/.config}/envman/`. The first save creates a separate random storage key under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key` and encrypts the managed configuration. Automatic environment snapshots created after that save contain ciphertext.
 
-## First run
+Anyone who obtains both the storage key and encrypted file can recover the values. An unlocked user or root can also read values from the running environment. The [storage and shell-loading reference](docs/reference/storage-and-shell-loading.md) documents the full boundary and plaintext-snapshot migration.
 
-```bash
-"$ENVMAN"
-```
-
-With no command, Envman opens the TUI. A new store starts empty; press `A` to add a variable. At TUI startup, if `ENVMAN_BACKUP_KEY` is not configured and no fallback key exists, Envman clearly prompts before generating one. Declining leaves state unchanged and encrypted-backup operations unavailable. The catalog uses the available terminal height and requires at least 80 columns by 18 rows. Press `Q` or `Esc` to leave the catalog and start a child shell with the managed environment.
-
-The CLI is available when an interactive terminal is not appropriate:
+Encrypted backup files use `ENVMAN_BACKUP_KEY` when it is configured. Otherwise Envman can use a private fallback key, but only after explicit approval:
 
 ```bash
-"$ENVMAN" set PROJECT_URL --value https://example.test
-"$ENVMAN" list --json
-```
-
-## TUI controls
-
-- `Up`/`Down` moves focus. `Space` toggles the focused variable, so several variables can be selected.
-- `C` copies one source value into every selected variable; with no selection it targets the focused variable.
-- `D` deletes the selected variables; with no selection it targets the focused variable.
-- `B` writes an encrypted backup of the selected variables, or all managed variables when nothing is selected; it is unavailable until an approved backup key is available.
-- `A` adds, `E` or `Enter` edits, and `R` renames the focused variable.
-- `O` changes ordering, `F` sets a filter, `M` changes filter scope, and `[`/`]` scrolls details.
-- `I` previews process-environment imports. `J` previews an encrypted-backup import.
-
-Use `envman --nocolor` when the terminal cannot use curses color pairs. The [TUI guide](docs/guides/tui.md) has the complete control reference.
-
-## Values and masking
-
-Names in the `KEY` class and names containing terms such as `TOKEN`, `PASSWORD`, `SECRET`, `CREDENTIAL`, or `PRIVATE_KEY` are treated as sensitive. Names ending in `_API_KEY_ENV` are references to managed variables, not secrets themselves. URLs that contain a password are also sensitive.
-
-Sensitive values are masked in normal TUI and CLI output. Values of six to nine characters show one character at each edge, values of 10 to 15 show two, and values of 16 or more show four. Sensitive values shorter than six characters are rejected. `--reveal` is an explicit request to print a sensitive value and should be used only by a trusted caller.
-
-## What Envman changes
-
-Envman stores assignments in `${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf` with private permissions. The first save creates a separate random storage key under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key` and encrypts the managed file. Subsequent automatic environment snapshots contain ciphertext. Saving also installs marked loaders for supported POSIX shells and Fish. Existing shell profile text, comments, and assignment order remain intact.
-
-The storage key is a private file so desktop and unattended SSH shells can load values without a new prompt. Anyone with both the key and encrypted file can decrypt the values. `envman check` reports older plaintext snapshots; `envman migrate-storage` previews their conversion, and `envman migrate-storage --apply` encrypts them. Encrypted export uses an independent backup credential:
-
-```bash
+envman key --generate --approve-key-generation
 envman export backup.json
 envman import-backup backup.json --all --apply
 ```
 
-When `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. Otherwise Envman may use `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`, a private mode-`0600` fallback. Envman never creates or replaces that file silently: TUI startup prompts before generation, and declining leaves state unchanged with encrypted-backup operations unavailable.
+The command never prints key material. `--yes` and `--force` do not approve key generation. Keep keys, managed values, receipts, and backup files out of source control.
 
-For automation or AI agents, generate a fallback only with `envman key --generate --approve-key-generation`. `--yes` and `--force` are not approval. This command never prints key material, preserves an existing key file, and fails closed for a malformed key file. Do not put a key, backup file, or managed values in source control.
+<details>
+<summary>Install the optional agent skill</summary>
 
-## Updates and removal
-
-Updates follow the provider recorded in the installation receipt:
+Releases that include the Envman agent skill can install it into the current repository:
 
 ```bash
-envman update --check
-envman update
+uv run --python 3.12 --script \
+  https://github.com/CruxExperts/envman/releases/latest/download/install.py \
+  --install-skill
 ```
 
-An update refuses a downgrade. If a verified update fails, Envman restores the previous wheel and receipt. `uv tool uninstall envman` removes the installed command; the managed configuration, local backups, shell loader files, and a private retained decryptor remain so new shells can still load the encrypted store. Removing the retained decryptor or its Python runtime stops that loading. See [installation sources and updates](docs/reference/install-source-and-updates.md) for receipt recovery and intentional rollback.
+The installer verifies the skill asset, confines installation to supported repository-local skill roots, refuses symlink escapes, and preserves an unmarked existing skill. Use `--no-install-skill` to decline it explicitly.
 
-## Documentation and support
+</details>
 
-- [Installation](docs/getting-started/installation.md)
-- [CLI reference](docs/guides/cli.md)
-- [TUI guide](docs/guides/tui.md)
-- [Backups and migration](docs/guides/backups-and-migration.md)
-- [Storage and shell loading](docs/reference/storage-and-shell-loading.md)
-- [Architecture](docs/development/architecture.md)
-- [Versioning and releases](docs/development/versioning-and-releases.md)
+## Documentation
 
-Ask questions in [GitHub Discussions](https://github.com/CruxExperts/envman/discussions), report reproducible defects in [GitHub Issues](https://github.com/CruxExperts/envman/issues), and see [SUPPORT.md](SUPPORT.md) for sanitized diagnostics. Report suspected vulnerabilities through [private vulnerability reporting](https://github.com/CruxExperts/envman/security/advisories/new), not a public issue. Contributors should read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- [Install and update Envman](docs/getting-started/installation.md)
+- [Use the terminal UI](docs/guides/tui.md)
+- [Automate with the CLI](docs/guides/cli.md)
+- [Create and restore encrypted backups](docs/guides/backups-and-migration.md)
+- [Understand storage and shell loading](docs/reference/storage-and-shell-loading.md)
+- [Inspect the release and update trust boundary](docs/reference/install-source-and-updates.md)
+- [Read the architecture](docs/development/architecture.md)
+- [Run the test suite](docs/development/testing.md)
+- [Open the GitHub Pages documentation](https://cruxexperts.github.io/envman/)
 
-Envman is released under the [MIT License](LICENSE).
+## Support and contributions
+
+Ask usage questions in [GitHub Discussions](https://github.com/CruxExperts/envman/discussions). Report reproducible defects in [GitHub Issues](https://github.com/CruxExperts/envman/issues). Suspected vulnerabilities belong in [private vulnerability reporting](https://github.com/CruxExperts/envman/security/advisories/new), never a public issue.
+
+Contributors should read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the [Code of conduct](CODE_OF_CONDUCT.md). Envman is released under the [MIT License](LICENSE).

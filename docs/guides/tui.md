@@ -5,7 +5,7 @@ title: Terminal UI
 
 # Terminal UI
 
-Run `envman` with no command to open the interactive catalog. The catalog is full-height and index-free: it uses the available rows between the fixed header and footer and never assigns numeric indexes to variables. The minimum supported terminal size is 80 columns by 18 rows. If the terminal is smaller, Envman shows a size message and ignores catalog actions until it is resized.
+Run `envman` with no command to open the interactive catalog. The catalog is full-height and index-free: it uses the available rows between the fixed header and footer and never assigns numeric indexes to variables. Its header shows the store path, current mode, sort order, filter, and selection count. The minimum supported terminal size is 80 columns by 18 rows. If the terminal is smaller, Envman shows a size message and ignores catalog actions until it is resized.
 
 ## Encrypted-backup key prompt
 
@@ -15,8 +15,8 @@ Automation and AI agents must use `envman key --generate --approve-key-generatio
 
 ## Catalog controls
 
-- **Up/Down** moves focus.
-- **Space** toggles the focused variable in the multi-selection. Selected rows show `[*]`; focused but unselected rows show `[ ]`.
+- **Up/Down** moves focus. The focused row begins with `>` and uses reverse video when color is enabled.
+- **Space** toggles the focused variable in the multi-selection. Selected rows show `[*]`; unselected rows show `[ ]`. The count above the catalog reports how many visible variables are selected.
 - **A** adds a variable.
 - **Enter** or **E** edits the focused variable.
 - **R** renames the focused variable.
@@ -44,3 +44,5 @@ The add and edit prompts validate the entered value before saving. A name that e
 Copying a sensitive value into a name that would display it as public is rejected. Renaming a sensitive value to a public name is rejected for the same reason. For import boundaries and collision handling, see [the CLI reference](cli.md) and [encrypted backups and migration](backups-and-migration.md).
 
 Use `envman --nocolor` when a colorless curses surface is required.
+
+The default palette uses cyan for names, controls, and focus; neutral text for values; and yellow for collisions or warnings. The `>` focus cue, selection markers, labels, and status text remain available without color.

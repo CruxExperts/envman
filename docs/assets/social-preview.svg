@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">Envman social preview</title>
+  <desc id="desc">Envman logo and product description beside a compact terminal variable catalog.</desc>
+  <metadata>
+    <dc:title>Envman repository social preview</dc:title>
+    <dc:creator>Crux Experts LLC</dc:creator>
+    <dc:source>https://www.cruxexperts.com/</dc:source>
+    <dc:rights>Copyright © 2026 Crux Experts LLC. Private asset. Property of Crux Experts LLC. Use, reproduction, modification, distribution, or publication without prior written permission is prohibited.</dc:rights>
+  </metadata>
+  <rect width="1280" height="640" fill="#071b22"/>
+  <rect x="0" y="0" width="20" height="640" fill="#dfff72"/>
+  <rect x="80" y="72" width="88" height="88" rx="16" fill="#dfff72"/>
+  <path d="M112 94H98v44h14M136 94h14v44h-14" fill="none" stroke="#083b43" stroke-width="7"/>
+  <path d="M116 108h16M116 125h16" fill="none" stroke="#10252c" stroke-width="7"/>
+  <text x="190" y="141" fill="#f7fbfa" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="68" font-weight="750" letter-spacing="-3">envman</text>
+  <text x="80" y="241" fill="#f7fbfa" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="44" font-weight="700">Persistent environment variables,</text>
+  <text x="80" y="296" fill="#f7fbfa" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="44" font-weight="700">without the startup-file sprawl.</text>
+  <text x="80" y="358" fill="#9fc0c5" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="24">Terminal UI · scriptable CLI · encrypted backups</text>
+  <rect x="80" y="430" width="1120" height="136" rx="12" fill="#0d3038" stroke="#2d5960" stroke-width="2"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22">
+    <text x="111" y="471" fill="#dfff72">[*]</text><text x="170" y="471" fill="#f7fbfa" font-weight="700">PROJECT_PATH</text><text x="467" y="471" fill="#77dfe5">/srv/envman</text>
+    <text x="111" y="511" fill="#75959a">[ ]</text><text x="170" y="511" fill="#f7fbfa">SERVICE_URL</text><text x="467" y="511" fill="#b9cdd0">https://service.example</text>
+    <text x="111" y="551" fill="#75959a">[ ]</text><text x="170" y="551" fill="#f7fbfa">SERVICE_API_TOKEN</text><text x="467" y="551" fill="#f3c86a">tok_••••••••••••_6b2f</text>
+  </g>
+  <text x="80" y="606" fill="#6f9399" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="18">github.com/CruxExperts/envman</text>
+</svg>

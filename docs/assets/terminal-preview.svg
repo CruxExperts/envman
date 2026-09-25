@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="0 0 1120 690" role="img" aria-labelledby="title desc">
+  <title id="title">Envman terminal UI preview</title>
+  <desc id="desc">A sample Envman variable catalog with a focused project path, masked API token, selection count, details, and keyboard controls.</desc>
+  <metadata>
+    <dc:title>Envman terminal UI preview</dc:title>
+    <dc:creator>Crux Experts LLC</dc:creator>
+    <dc:source>https://www.cruxexperts.com/</dc:source>
+    <dc:rights>Copyright © 2026 Crux Experts LLC. Private asset. Property of Crux Experts LLC. Use, reproduction, modification, distribution, or publication without prior written permission is prohibited.</dc:rights>
+  </metadata>
+  <rect width="1120" height="690" rx="18" fill="#071b22"/>
+  <rect x="1" y="1" width="1118" height="688" rx="17" fill="none" stroke="#2d5960" stroke-width="2"/>
+  <circle cx="32" cy="29" r="6" fill="#f36f56"/><circle cx="53" cy="29" r="6" fill="#f3c86a"/><circle cx="74" cy="29" r="6" fill="#72d7a1"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <text x="28" y="78" fill="#77dfe5" font-size="27" font-weight="700">Envman / Managed variables</text>
+    <text x="28" y="112" fill="#8cabb0" font-size="18">Store: ~/.config/envman/environment.conf</text>
+    <text x="921" y="112" fill="#f7fbfa" font-size="18">Mode: Manage</text>
+    <line x1="28" y1="136" x2="1092" y2="136" stroke="#2d5960" stroke-width="2"/>
+    <text x="28" y="176" fill="#77dfe5" font-size="18" font-weight="700">Sort:</text><text x="91" y="176" fill="#f7fbfa" font-size="18">Name ↑ [O]</text>
+    <text x="260" y="176" fill="#77dfe5" font-size="18" font-weight="700">Filter:</text><text x="340" y="176" fill="#f7fbfa" font-size="18">Both [M]</text>
+    <text x="495" y="176" fill="#77dfe5" font-size="18" font-weight="700">Pattern:</text><text x="594" y="176" fill="#8cabb0" font-size="18">'(all)' [F]</text>
+    <text x="898" y="176" fill="#77dfe5" font-size="18">1 selected · 3 shown</text>
+    <line x1="28" y1="200" x2="1092" y2="200" stroke="#2d5960" stroke-width="2"/>
+    <rect x="22" y="221" width="1076" height="58" rx="6" fill="#0e5059"/>
+    <text x="31" y="258" fill="#dfff72" font-size="21" font-weight="700">&gt;</text><text x="57" y="258" fill="#dfff72" font-size="21">[*]</text><text x="119" y="258" fill="#f7fbfa" font-size="21" font-weight="700">PROJECT_PATH</text><text x="438" y="258" fill="#77dfe5" font-size="21">/srv/envman</text>
+    <text x="57" y="327" fill="#8cabb0" font-size="21">[ ]</text><text x="119" y="327" fill="#f7fbfa" font-size="21">SERVICE_URL</text><text x="438" y="327" fill="#b9cdd0" font-size="21">https://service.example</text>
+    <text x="57" y="386" fill="#8cabb0" font-size="21">[ ]</text><text x="119" y="386" fill="#f7fbfa" font-size="21">SERVICE_API_TOKEN</text><text x="438" y="386" fill="#f3c86a" font-size="21">tok_••••••••••••_6b2f</text>
+    <line x1="28" y1="420" x2="1092" y2="420" stroke="#2d5960" stroke-width="2"/>
+    <text x="28" y="461" fill="#8cabb0" font-size="18">FOCUSED VALUE</text>
+    <text x="28" y="499" fill="#f7fbfa" font-size="21">PROJECT_PATH</text><text x="402" y="499" fill="#77dfe5" font-size="21">/srv/envman</text>
+    <text x="28" y="536" fill="#8cabb0" font-size="17">public · saved · selected for group actions</text>
+    <line x1="28" y1="565" x2="1092" y2="565" stroke="#2d5960" stroke-width="2"/>
+    <text x="28" y="607" fill="#dfff72" font-size="17" font-weight="700">A</text><text x="48" y="607" fill="#b9cdd0" font-size="17">dd</text>
+    <text x="105" y="607" fill="#dfff72" font-size="17" font-weight="700">E</text><text x="125" y="607" fill="#b9cdd0" font-size="17">dit</text>
+    <text x="183" y="607" fill="#dfff72" font-size="17" font-weight="700">C</text><text x="203" y="607" fill="#b9cdd0" font-size="17">opy</text>
+    <text x="274" y="607" fill="#dfff72" font-size="17" font-weight="700">B</text><text x="294" y="607" fill="#b9cdd0" font-size="17"> Backup</text>
+    <text x="400" y="607" fill="#dfff72" font-size="17" font-weight="700">I</text><text x="420" y="607" fill="#b9cdd0" font-size="17"> Import</text>
+    <text x="520" y="607" fill="#dfff72" font-size="17" font-weight="700">J</text><text x="540" y="607" fill="#b9cdd0" font-size="17"> Encrypted</text>
+    <text x="686" y="607" fill="#dfff72" font-size="17" font-weight="700">F</text><text x="706" y="607" fill="#b9cdd0" font-size="17"> Filter</text>
+    <text x="809" y="607" fill="#dfff72" font-size="17" font-weight="700">M</text><text x="829" y="607" fill="#b9cdd0" font-size="17"> Scope</text>
+    <text x="933" y="607" fill="#dfff72" font-size="17" font-weight="700">Q</text><text x="953" y="607" fill="#b9cdd0" font-size="17"> Quit</text>
+    <rect x="22" y="631" width="1076" height="40" rx="5" fill="#dfff72"/>
+    <text x="40" y="658" fill="#10252c" font-size="17" font-weight="700">Ready. Values marked sensitive stay masked.</text>
+  </g>
+</svg>

@@ -1,86 +1,87 @@
 ---
 layout: default
 title: Envman | Portable environment variables
-description: Manage persistent environment variables from a Linux terminal UI or scriptable CLI.
+description: Manage persistent Linux environment variables with a terminal UI, scriptable CLI, and encrypted backups.
 ---
 
-<section class="hero" aria-labelledby="hero-title">
-  <div class="hero-copy">
-    <p class="status">release 0.1.8</p>
-    <h1 id="hero-title">Manage persistent environment variables from a terminal UI or CLI.</h1>
-    <p>Envman keeps a validated set of per-user variables in one managed file. Use the full-height terminal UI for interactive work or the CLI for repeatable commands and JSON output.</p>
-    <div class="actions" aria-label="Primary actions">
-      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install 0.1.8</a>
-      <a class="button secondary" href="{{ '/guides/tui' | relative_url }}">Terminal UI</a>
-      <a class="button secondary" href="{{ '/guides/cli' | relative_url }}">CLI reference</a>
+<section class="home-stage" aria-labelledby="hero-title">
+  <div class="home-stage__inner">
+    <div class="home-stage__copy">
+      <p class="release-line">Envman 0.1.8 · Linux x86_64</p>
+      <h1 id="hero-title">Persistent variables, without the startup-file sprawl.</h1>
+      <p>Envman keeps a validated set of per-user environment variables in one managed location. Inspect and edit them in the terminal UI, or use the CLI for repeatable commands and JSON output.</p>
+      <div class="actions" aria-label="Primary actions">
+        <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Install Envman</a>
+        <a class="button secondary" href="https://github.com/CruxExperts/envman">View on GitHub</a>
+      </div>
     </div>
+    <figure class="product-frame">
+      <img src="{{ '/assets/terminal-preview.svg' | relative_url }}" width="1120" height="690" alt="Envman terminal catalog showing a project path, service URL, masked API token, focused-row details, and keyboard controls">
+      <figcaption>Sample data only. Sensitive values remain masked in ordinary output.</figcaption>
+    </figure>
   </div>
-  <section class="panel" aria-label="Example Envman terminal output">
-    <div class="panel-header"><span>envman / managed variables</span><span class="signal">sensitive values masked</span></div>
-    <pre class="readout" aria-label="Example JSON output"><span class="status">$ envman list --json</span>
-{"variables": [{"name": "OMNIROUTE_API_KEY", "sensitive": true, "value": "ab*******jk"}, {"name": "OMNIROUTE_BASE_URL", "sensitive": false, "value": "https://llm.example/v1"}, {"name": "PROJECT_PATH", "sensitive": false, "value": "/path/to/project"}]}</pre>
-  </section>
 </section>
 
-## One managed file, two interfaces
+<section class="home-section" aria-labelledby="two-interfaces">
+  <h2 id="two-interfaces">One managed set. Two useful interfaces.</h2>
+  <p class="home-section__intro">The TUI and CLI work on the same store and apply the same validation, masking, and persistence rules.</p>
+  <div class="interface-pair">
+    <section>
+      <h3>Terminal UI for deliberate edits</h3>
+      <p>Browse the complete catalog, focus a value, select several variables, and preview imports before saving. The layout uses the available terminal height and keeps its controls visible at 80 by 18 characters.</p>
+      <p><a href="{{ '/guides/tui' | relative_url }}">Learn the terminal controls →</a></p>
+    </section>
+    <section>
+      <h3>CLI for scripts and automation</h3>
+      <p>Use <code>list</code>, <code>get</code>, <code>set</code>, <code>rename</code>, <code>validate</code>, and import commands. Add <code>--json</code> where supported for stable machine-readable results.</p>
+      <p><a href="{{ '/guides/cli' | relative_url }}">Read the CLI reference →</a></p>
+    </section>
+  </div>
+</section>
 
-<div class="columns">
-  <section>
-    <h3>Terminal UI</h3>
-    <p>The catalog and selected-variable detail use the available terminal height instead of a fixed index. Arrow keys move the selection, and Space toggles multiple variables.</p>
-  </section>
-  <section>
-    <h3>Scriptable CLI</h3>
-    <p>Use <code>list</code>, <code>get</code>, <code>set</code>, <code>unset</code>, <code>rename</code>, <code>validate</code>, and import commands. Add <code>--json</code> for stable machine-readable output.</p>
-  </section>
-  <section>
-    <h3>Encrypted migration</h3>
-    <p>Export an authenticated encrypted JSON backup. An explicit <code>ENVMAN_BACKUP_KEY</code> takes precedence; otherwise Envman uses only an approved private fallback. The TUI can back up selected variables; the CLI exports the managed set.</p>
-  </section>
-</div>
+<section class="home-section home-section--brand" aria-labelledby="storage-boundary">
+  <div class="boundary-grid">
+    <div>
+      <h2 id="storage-boundary">The storage boundary stays explicit.</h2>
+      <p>Envman encrypts the managed configuration after its first save and keeps the storage key in a separate private state file. Encrypted exports use an independent backup credential.</p>
+      <p><a href="{{ '/reference/storage-and-shell-loading' | relative_url }}">Understand storage and shell loading →</a></p>
+    </div>
+    <ul class="boundary-list">
+      <li><strong>Masked output</strong>Values classified as sensitive by their names, plus password-bearing URLs, are masked unless a trusted caller explicitly requests <code>--reveal</code>.</li>
+      <li><strong>Preview before import</strong>Process and backup imports show their proposed changes before <code>--apply</code> writes anything.</li>
+      <li><strong>Separate backup key</strong><code>ENVMAN_BACKUP_KEY</code> or an approved private fallback protects encrypted backup files.</li>
+      <li><strong>Verified releases</strong>The installer checks immutable asset URLs, sizes, hashes, wheel metadata, runtime constraints, and host compatibility.</li>
+    </ul>
+  </div>
+</section>
 
-## Safety rules are visible
+<section class="home-section home-section--tint" aria-labelledby="quick-start">
+  <div class="quickstart">
+    <div>
+      <h2 id="quick-start">Install the verified release.</h2>
+      <p>Envman 0.1.8 supports Linux x86_64, CPython 3.12, and <code>uv &gt;=0.11</code>.</p>
+      <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Installation details</a>
+    </div>
+    <pre aria-label="Envman installation command"><code>uv run --python 3.12 --script \
+  https://github.com/CruxExperts/envman/releases/latest/download/install.py
 
-- Names in the `KEY` class are sensitive, except names ending in `_API_KEY_ENV`, which reference another managed variable.
-- Sensitive values are masked at the edges: 4+4 characters for values at least 16 characters long, 2+2 for 10-15, and 1+1 for 6-9. Sensitive values shorter than six characters are rejected.
-- Normal output masks sensitive values. `--reveal` is an explicit opt-in for a caller that can protect the output.
-- Import previews changes before applying them. `--force` accepts advisory warnings but does not bypass validation or collision protection.
-- Fallback key generation requires explicit approval; automation uses `envman key --generate --approve-key-generation`, not `--yes` or `--force`.
+# Add uv's tool bin directory to this shell, then open Envman:
+export PATH="$(uv tool dir --bin):$PATH"
+envman</code></pre>
+  </div>
+</section>
 
-## Install a verified release
-
-Envman 0.1.8 requires Linux x86_64, CPython 3.12, and `uv >=0.11`:
-
-```bash
-uv run --python 3.12 --script https://github.com/CruxExperts/envman/releases/latest/download/install.py
-```
-
-The standalone installer verifies the GitHub release manifest, immutable asset URLs, SHA-256 hashes, wheel metadata, runtime constraints, and the selected `uv` runtime before installing with `uv tool install --no-build`. It resolves the installed command through `uv tool dir --bin`, so installation and verification succeed even if that directory is not yet in `PATH`. It records an installation receipt under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`; receipts created by the 0.1.8 installer record `installer_version: 0.1.8`, and updates use that recorded provider and do not silently switch channels. [Read the installation trust boundary.]({{ '/reference/install-source-and-updates' | relative_url }})
-
-## Where state lives
-
-```text
-${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf
-  -> authenticated ciphertext after first save
-  -> load-env.sh, shell-specific loaders, and a retained decryptor
-  -> backups/ (new environment snapshots contain ciphertext)
-  -> ${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key (optional private mode-0600 encrypted-backup fallback; never created or replaced silently)
-
-${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json
-  -> installer receipt used by verified updates
-${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key
-  -> private key for the managed configuration; keep separate from data copies
-```
-
-Start with:
-
-- [Install Envman]({{ '/getting-started/installation' | relative_url }})
-- [Use the terminal UI]({{ '/guides/tui' | relative_url }})
-- [Automate with the CLI]({{ '/guides/cli' | relative_url }})
-- [Move variables with encrypted backups]({{ '/guides/backups-and-migration' | relative_url }})
-- [Understand storage and shell loading]({{ '/reference/storage-and-shell-loading' | relative_url }})
-- [Read the installation and update protocol]({{ '/reference/install-source-and-updates' | relative_url }})
-- [Read the architecture]({{ '/development/architecture' | relative_url }})
-- [Run the tests]({{ '/development/testing' | relative_url }})
-- [Plan and publish a release]({{ '/development/versioning-and-releases' | relative_url }})
-- [Use the publishing checklist]({{ '/governance/publishing-checklist' | relative_url }})
+<section class="home-section" aria-labelledby="documentation">
+  <h2 id="documentation">Go straight to the useful page.</h2>
+  <p class="home-section__intro">Start with the task in front of you. Protocol and architecture details are there when you need to inspect the boundary.</p>
+  <div class="route-list">
+    <a href="{{ '/getting-started/installation' | relative_url }}">Install and update</a>
+    <a href="{{ '/guides/tui' | relative_url }}">Use the terminal UI</a>
+    <a href="{{ '/guides/cli' | relative_url }}">Automate with the CLI</a>
+    <a href="{{ '/guides/backups-and-migration' | relative_url }}">Move encrypted backups</a>
+    <a href="{{ '/reference/storage-and-shell-loading' | relative_url }}">Inspect storage behavior</a>
+    <a href="{{ '/reference/install-source-and-updates' | relative_url }}">Inspect release verification</a>
+    <a href="{{ '/development/architecture' | relative_url }}">Read the architecture</a>
+    <a href="{{ '/development/testing' | relative_url }}">Run the test suite</a>
+  </div>
+</section>

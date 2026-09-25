@@ -172,7 +172,7 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
 
         self.assertEqual(envman.EnvmanTUI(screen, store).prompt_name("New variable name"), "NAME")
 
-    def test_variable_list_uses_green_names_and_yellow_values_when_supported(self) -> None:
+    def test_variable_list_uses_cyan_and_neutral_colors_when_supported(self) -> None:
         screen = mock.MagicMock()
         screen.getmaxyx.return_value = (20, 80)
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
@@ -199,45 +199,43 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
         use_default_colors.assert_called_once_with()
         init_pair.assert_has_calls(
             [
-                mock.call(1, envman.curses.COLOR_BLACK, envman.curses.COLOR_YELLOW),
-                mock.call(2, envman.curses.COLOR_GREEN, -1),
-                mock.call(3, envman.curses.COLOR_YELLOW, -1),
-                mock.call(4, envman.curses.COLOR_BLUE, -1),
-                mock.call(5, envman.curses.COLOR_MAGENTA, -1),
-                mock.call(
-                    7,
-                    208 if getattr(envman.curses, "COLORS", 0) >= 256 else envman.curses.COLOR_YELLOW,
-                    -1,
-                ),
+                mock.call(1, envman.curses.COLOR_BLACK, envman.curses.COLOR_CYAN),
+                mock.call(2, envman.curses.COLOR_CYAN, -1),
+                mock.call(3, -1, -1),
+                mock.call(4, envman.curses.COLOR_CYAN, -1),
+                mock.call(5, envman.curses.COLOR_CYAN, -1),
+                mock.call(7, envman.curses.COLOR_CYAN, -1),
             ]
         )
         color_pair.assert_has_calls(
             [mock.call(1), mock.call(2), mock.call(3), mock.call(4), mock.call(5), mock.call(7)]
         )
+        self.assertEqual(tui.status_attribute, 128 | envman.curses.A_BOLD)
         self.assertEqual(tui.control_label_attribute, 4096 | envman.curses.A_BOLD)
         self.assertEqual(tui.number_attribute, 1024)
         self.assertTrue(
             any(
-                call.args[2] == "Envman · Environment Variable Manager"
+                call.args[2] == "Envman / Managed variables"
                 and call.args[4] == (2048 | envman.curses.A_BOLD)
                 for call in screen.addnstr.call_args_list
             )
         )
         self.assertTrue(
             any(
-                call.args[2] == "SAMPLE"
+                call.args[2].startswith("SAMPLE")
                 and call.args[4] == (256 | envman.curses.A_BOLD | envman.curses.A_REVERSE)
                 for call in screen.addnstr.call_args_list
             )
         )
         self.assertTrue(
             any(
-                call.args[2] == "value" and call.args[4] == (512 | envman.curses.A_REVERSE)
+                call.args[2] == "value"
+                and call.args[4] == (512 | envman.curses.A_REVERSE | envman.curses.A_BOLD)
                 for call in screen.addnstr.call_args_list
             )
         )
 
-    def test_import_catalog_uses_green_variables_and_orange_control_labels(self) -> None:
+    def test_import_catalog_uses_the_shared_cyan_and_neutral_palette(self) -> None:
         screen = mock.MagicMock()
         store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
         preview = envman.EnvironmentImportTUI(screen, store, {"EXTERNAL": "value"})
@@ -257,24 +255,41 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
 
         init_pair.assert_has_calls(
             [
-                mock.call(1, envman.curses.COLOR_BLACK, envman.curses.COLOR_YELLOW),
-                mock.call(2, envman.curses.COLOR_GREEN, -1),
-                mock.call(3, envman.curses.COLOR_YELLOW, -1),
-                mock.call(4, envman.curses.COLOR_BLUE, -1),
-                mock.call(5, envman.curses.COLOR_MAGENTA, -1),
-                mock.call(6, envman.curses.COLOR_RED, -1),
-                mock.call(
-                    7,
-                    208 if getattr(envman.curses, "COLORS", 0) >= 256 else envman.curses.COLOR_YELLOW,
-                    -1,
-                ),
+                mock.call(1, envman.curses.COLOR_BLACK, envman.curses.COLOR_CYAN),
+                mock.call(2, envman.curses.COLOR_CYAN, -1),
+                mock.call(3, -1, -1),
+                mock.call(4, envman.curses.COLOR_CYAN, -1),
+                mock.call(5, envman.curses.COLOR_CYAN, -1),
+                mock.call(6, envman.curses.COLOR_YELLOW, -1),
+                mock.call(7, envman.curses.COLOR_CYAN, -1),
             ]
         )
         self.assertEqual(preview.number_attribute, 1024)
+        self.assertEqual(preview.status_attribute, 128 | envman.curses.A_BOLD)
         self.assertEqual(preview.source_attribute, 256 | envman.curses.A_BOLD)
         self.assertEqual(preview.value_attribute, 512)
         self.assertEqual(preview.title_attribute, 2048 | envman.curses.A_BOLD)
         self.assertEqual(preview.control_label_attribute, 8192 | envman.curses.A_BOLD)
+
+    def test_color_fallback_uses_white_values_on_black_background(self) -> None:
+        screen = mock.MagicMock()
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        interfaces = (
+            envman.EnvmanTUI(screen, store),
+            envman.EnvironmentImportTUI(screen, store, {"EXTERNAL": "value"}),
+        )
+
+        for interface in interfaces:
+            with (
+                mock.patch.object(envman.curses, "has_colors", return_value=True),
+                mock.patch.object(envman.curses, "start_color"),
+                mock.patch.object(envman.curses, "use_default_colors", side_effect=envman.curses.error),
+                mock.patch.object(envman.curses, "init_pair") as init_pair,
+                mock.patch.object(envman.curses, "color_pair", return_value=0),
+            ):
+                interface.configure_colors()
+
+            init_pair.assert_any_call(3, envman.curses.COLOR_WHITE, envman.curses.COLOR_BLACK)
 
 
     def test_nocolor_launch_uses_default_foreground_and_noncolor_selection(self) -> None:
@@ -811,6 +826,44 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
         self.assertEqual(legend_attributes["A"], 44)
         self.assertEqual(next(attribute for text, attribute in legend_attributes.items() if text.startswith("dd")), 55)
 
+    def test_focused_rows_keep_segment_color_pairs_separate_from_focus_attributes(self) -> None:
+        screen = mock.MagicMock()
+        pair_bit = envman.curses.A_COLOR & -envman.curses.A_COLOR
+        pair1 = pair_bit
+        pair2 = pair_bit << 1
+        pair3 = pair_bit * 3
+        pair4 = pair_bit << 2
+
+        envman.draw_catalog_row(
+            screen,
+            6,
+            80,
+            marker="[*]",
+            state_marker="",
+            name="TOKEN_NAME",
+            value="visible",
+            marker_attribute=pair4,
+            name_attribute=pair2 | envman.curses.A_BOLD,
+            value_attribute=pair3,
+            selected_attribute=pair1 | envman.curses.A_REVERSE | envman.curses.A_BOLD,
+            focused=True,
+        )
+
+        calls = screen.addnstr.call_args_list
+        color_mask = envman.curses.A_COLOR
+        focus_attribute = envman.curses.A_REVERSE | envman.curses.A_BOLD
+        background = next(call for call in calls if call.args[1] == 2 and call.args[2].startswith(" "))
+        name = next(call for call in calls if call.args[2].startswith("TOKEN_NAME"))
+        value = next(call for call in calls if call.args[2] == "visible")
+        marker = next(call for call in calls if call.args[2] == "[*]")
+
+        self.assertEqual(background.args[4] & color_mask, 0)
+        self.assertEqual(background.args[4], focus_attribute)
+        self.assertEqual(name.args[4] & color_mask, pair2)
+        self.assertEqual(name.args[4] & ~color_mask, focus_attribute | envman.curses.A_BOLD)
+        self.assertEqual(value.args[4] & color_mask, pair3)
+        self.assertEqual(marker.args[4] & color_mask, pair4)
+
     def test_catalog_headers_color_each_input_key(self) -> None:
         self.assertEqual(envman.TITLE_ROW, 0)
         height = envman.MIN_TUI_HEIGHT
@@ -825,7 +878,7 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
         main.draw()
 
         main_attributes = {(call.args[0], call.args[2]): call.args[4] for call in screen.addnstr.call_args_list}
-        self.assertEqual(main_attributes[envman.TITLE_ROW, "Envman · Environment Variable Manager"], 99)
+        self.assertEqual(main_attributes[envman.TITLE_ROW, "Envman / Managed variables"], 99)
         for row, key in (
             (envman.CATALOG_CONTROLS_ROW, "O"),
             (envman.CATALOG_CONTROLS_ROW, "M"),
@@ -841,17 +894,106 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
         preview.draw()
 
         import_attributes = {(call.args[0], call.args[2]): call.args[4] for call in screen.addnstr.call_args_list}
-        self.assertEqual(import_attributes[envman.TITLE_ROW, "Envman · Import Preview"], 99)
+        self.assertEqual(import_attributes[envman.TITLE_ROW, "Envman / Import preview"], 99)
         for row, key in (
-            (envman.SUBTITLE_ROW, "Esc"),
             (envman.CATALOG_CONTROLS_ROW, "O"),
             (envman.CATALOG_CONTROLS_ROW, "M"),
             (envman.CATALOG_CONTROLS_ROW, "F"),
-            (envman.CATALOG_HINT_ROW, "Space"),
-            (envman.CATALOG_HINT_ROW, "A"),
-            (envman.CATALOG_HINT_ROW, "Enter"),
+            (envman.MIN_TUI_HEIGHT - 4, "Space"),
+            (envman.MIN_TUI_HEIGHT - 4, "A"),
+            (envman.MIN_TUI_HEIGHT - 4, "Enter"),
         ):
             self.assertEqual(import_attributes[row, key], 44 | envman.curses.A_BOLD)
+        self.assertTrue(any(row == envman.SUBTITLE_ROW and text == "Mode: Import review" for row, text in import_attributes))
+
+    def test_catalogs_show_aligned_columns_focus_mode_and_selection_counts(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        store.values = {"ALPHA": "one", "BETA": "two"}
+        main = envman.EnvmanTUI(screen, store)
+        main.selected_names = {"BETA"}
+
+        main.draw()
+
+        main_rows = {6: "ALPHA", 7: "BETA"}
+        main_columns = {}
+        for row, name in main_rows.items():
+            calls = [call for call in screen.addnstr.call_args_list if call.args[0] == row]
+            self.assertTrue(any(call.args[1] == 2 and call.args[2] == ">" for call in calls) if row == 6 else True)
+            main_columns[name] = (
+                next(call.args[1] for call in calls if call.args[2].startswith(name)),
+                next(call.args[1] for call in calls if call.args[2] == " = "),
+                next(call.args[1] for call in calls if call.args[2] == "one" or call.args[2] == "two"),
+            )
+        self.assertEqual(main_columns["ALPHA"], main_columns["BETA"])
+        main_hint = "".join(
+            call.args[2]
+            for call in sorted(
+                (call for call in screen.addnstr.call_args_list if call.args[0] == envman.CATALOG_HINT_ROW),
+                key=lambda call: call.args[1],
+            )
+        )
+        self.assertIn("1 selected · 2 shown", main_hint)
+        self.assertTrue(any(call.args[2] == "Mode: Manage" for call in screen.addnstr.call_args_list))
+
+        screen.reset_mock()
+        preview = envman.EnvironmentImportTUI(screen, store, {"GAMMA": "three", "DELTA": "four"})
+        preview.selected_sources = {"GAMMA"}
+        preview.draw()
+        import_columns = {}
+        for row, name, value in ((6, "DELTA", "four"), (7, "GAMMA", "three")):
+            calls = [call for call in screen.addnstr.call_args_list if call.args[0] == row]
+            import_columns[name] = (
+                next(call.args[1] for call in calls if call.args[2].startswith(name)),
+                next(call.args[1] for call in calls if call.args[2] == " = "),
+                next(call.args[1] for call in calls if call.args[2] == value),
+            )
+        self.assertEqual(import_columns["DELTA"], import_columns["GAMMA"])
+        self.assertTrue(any(call.args[1] == 2 and call.args[2] == ">" for call in screen.addnstr.call_args_list if call.args[0] == 6))
+        import_hint = "".join(
+            call.args[2]
+            for call in sorted(
+                (call for call in screen.addnstr.call_args_list if call.args[0] == envman.CATALOG_HINT_ROW),
+                key=lambda call: call.args[1],
+            )
+        )
+        self.assertIn("1 selected · 2 shown · 2 importable", import_hint)
+
+    def test_catalogs_explain_empty_and_filtered_states(self) -> None:
+        screen = mock.MagicMock()
+        screen.getmaxyx.return_value = (envman.MIN_TUI_HEIGHT, envman.MIN_TUI_WIDTH)
+        store = envman.EnvironmentStore(Path("/tmp/home"), Path("/tmp/config"))
+        main = envman.EnvmanTUI(screen, store)
+        main.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("No variables yet. A adds one · I previews environment imports.", rendered)
+
+        screen.reset_mock()
+        main.filter_pattern = "missing"
+        main.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("No variables match this filter. F edits it · M changes scope.", rendered)
+
+        screen.reset_mock()
+        store.values = {"ALREADY_MANAGED": "current"}
+        preview = envman.EnvironmentImportTUI(screen, store, {"ALREADY_MANAGED": "external"})
+        preview.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("No new variables to import. All source variables are already managed.", rendered)
+
+        screen.reset_mock()
+        empty_preview = envman.EnvironmentImportTUI(screen, store, {})
+        empty_preview.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("No variables found in this source.", rendered)
+
+        screen.reset_mock()
+        preview.candidates = envman.environment_import_candidates({"FRESH": "value"}, store.values)
+        preview.filter_pattern = "missing"
+        preview.draw()
+        rendered = [call.args[2] for call in screen.addnstr.call_args_list]
+        self.assertIn("No candidates match this filter. F edits it · M changes scope.", rendered)
 
     def test_selected_detail_colors_variable_and_value_segments(self) -> None:
         screen = mock.MagicMock()
@@ -913,13 +1055,15 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
             if call.args[0] in {height - 4, height - 3}
         }
         self.assertTrue(
-            {"A", "E", "C", "R", "D", "I", "J", "B", "O", "F", "M", "[/]", "Esc/Q"}.issubset(main_footer)
+            {"A", "E", "C", "R", "D", "I", "J", "B", "F", "M", "[/]", "Q"}.issubset(main_footer)
         )
+        self.assertTrue(any(call.args[0] == envman.CATALOG_CONTROLS_ROW and call.args[2] == "O" for call in screen.addnstr.call_args_list))
         main_text = footer_text()
         self.assertIn("Backup", main_text)
         self.assertNotIn("B ackup", main_text)
         self.assertIn("Add  Edit", main_text)
-        self.assertIn("Backup  Import", main_text)
+        self.assertIn("B Backup", main_text)
+        self.assertIn("I Import", main_text)
 
         screen.reset_mock()
         envman.EnvironmentImportTUI(screen, store, {"ALPHA": "one"}).draw()
@@ -930,10 +1074,10 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
         }
         self.assertTrue({"Space", "A", "Enter", "O", "F", "M", "[/]", "Esc"}.issubset(import_footer))
         import_text = footer_text()
-        self.assertIn("SpaceToggle", import_text)
-        self.assertIn("EnterImport", import_text)
-        self.assertIn("SpaceToggle  All", import_text)
-        self.assertIn("[/]view  Escback", import_text)
+        self.assertIn("Space Toggle", import_text)
+        self.assertIn("Enter Import", import_text)
+        self.assertIn("A All/clear", import_text)
+        self.assertIn("[/] Detail  Esc Back", import_text)
 
     def test_selected_detail_omits_redundant_masking_notice(self) -> None:
         screen = mock.MagicMock()
@@ -970,7 +1114,7 @@ class EnvmanInputTests(IsolatedEnvmanTestCase):
         rendered = [call.args[2] for call in screen.addnstr.call_args_list]
         self.assertNotIn(long_name, rendered)
         self.assertFalse(any("external-" in text for text in rendered))
-        self.assertIn("No external variables match the filter.", rendered)
+        self.assertIn("No new variables to import. All source variables are already managed.", rendered)
 
 
     def test_import_preserves_credential_reference_bytes(self) -> None:

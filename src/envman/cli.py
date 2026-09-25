@@ -134,6 +134,54 @@ def draw_colored_line(
         used = min(len(text), remaining)
         column += used
         remaining -= used
+
+
+def draw_catalog_row(
+    screen: curses.window,
+    row: int,
+    width: int,
+    *,
+    marker: str,
+    state_marker: str,
+    name: str,
+    value: str,
+    marker_attribute: int,
+    name_attribute: int,
+    value_attribute: int,
+    selected_attribute: int,
+    focused: bool,
+) -> None:
+    """Draw a catalog row with aligned name/value columns and a clear focus cue."""
+    focus_modifiers = selected_attribute & ~getattr(curses, "A_COLOR", 0)
+    row_attribute = focus_modifiers | curses.A_BOLD if focused else curses.A_NORMAL
+    if focused:
+        screen.addnstr(row, 2, " " * max(0, width - 4), width - 4, row_attribute)
+    screen.addnstr(row, 2, ">" if focused else " ", 1, marker_attribute | row_attribute)
+
+    name_column = 10
+    name_width = min(36, max(18, (width - 24) // 2))
+    value_width = max(0, width - name_column - name_width - 7)
+    marker_and_state = ((marker, marker_attribute), (" ", curses.A_DIM), (state_marker or "  ", curses.A_BOLD))
+    name_text = truncate_for_display(name, name_width)
+    value_text = truncate_for_display(value, value_width)
+    segments = (
+        *marker_and_state,
+        (name_text.ljust(name_width), name_attribute),
+        (" = ", curses.A_DIM),
+        (value_text, value_attribute),
+    )
+    column = 4
+    remaining = width - column - 4
+    for text, attribute in segments:
+        if remaining <= 0:
+            break
+        segment_attribute = attribute | row_attribute
+        screen.addnstr(row, column, text, remaining, segment_attribute)
+        used = min(len(text), remaining)
+        column += used
+        remaining -= used
+
+
 def draw_key_legend(
     screen: curses.window,
     row: int,
@@ -1272,7 +1320,7 @@ class EnvmanTUI:
         self.filter_scope = "both"
         self.filter_pattern = ""
         self.status = "Ready. Space selects; A creates a variable."
-        self.status_attribute = curses.A_REVERSE | curses.A_BOLD if colors_enabled else curses.A_NORMAL
+        self.status_attribute = curses.A_NORMAL
         self.name_attribute = curses.A_BOLD
         self.value_attribute = curses.A_NORMAL
         self.number_attribute = curses.A_NORMAL
@@ -1280,7 +1328,7 @@ class EnvmanTUI:
         self.control_label_attribute = curses.A_BOLD
         self.setting_attribute = curses.A_BOLD
         self.pattern_attribute = curses.A_NORMAL
-        self.selected_attribute = curses.A_REVERSE if colors_enabled else curses.A_BOLD
+        self.selected_attribute = curses.A_BOLD
         self.detail_offset = 0
         self.start_shell = True
 
@@ -1289,31 +1337,35 @@ class EnvmanTUI:
             if not self.colors_enabled or not curses.has_colors():
                 return
             curses.start_color()
-            curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-            self.status_attribute = curses.color_pair(1) | curses.A_BOLD
             try:
                 curses.use_default_colors()
                 background = -1
+                foreground = -1
             except curses.error:
                 background = curses.COLOR_BLACK
-            curses.init_pair(2, curses.COLOR_GREEN, background)
-            curses.init_pair(3, curses.COLOR_YELLOW, background)
-            curses.init_pair(4, curses.COLOR_BLUE, background)
-            curses.init_pair(5, curses.COLOR_MAGENTA, background)
+                foreground = curses.COLOR_WHITE
+            curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
+            curses.init_pair(2, curses.COLOR_CYAN, background)
+            curses.init_pair(3, foreground, background)
+            curses.init_pair(4, curses.COLOR_CYAN, background)
+            curses.init_pair(5, curses.COLOR_CYAN, background)
             curses.init_pair(
                 7,
-                208 if getattr(curses, "COLORS", 0) >= 256 else curses.COLOR_YELLOW,
+                curses.COLOR_CYAN,
                 background,
             )
+            self.status_attribute = curses.color_pair(1) | curses.A_BOLD
             self.name_attribute = curses.color_pair(2) | curses.A_BOLD
             self.value_attribute = curses.color_pair(3)
             self.number_attribute = curses.color_pair(4)
             self.title_attribute = curses.color_pair(5) | curses.A_BOLD
             self.control_label_attribute = curses.color_pair(7) | curses.A_BOLD
-            self.setting_attribute = self.name_attribute
-            self.pattern_attribute = self.value_attribute
+            self.setting_attribute = self.value_attribute
+            self.pattern_attribute = self.value_attribute | curses.A_DIM
+            self.selected_attribute = curses.A_REVERSE | curses.A_BOLD
         except curses.error:
             pass
+
     def catalog_names(self) -> list[str]:
         pattern = self.filter_pattern.casefold()
         names = [
@@ -1425,8 +1477,20 @@ class EnvmanTUI:
             self._draw_size_error(height, width)
             return
 
-        self.screen.addnstr(TITLE_ROW, 2, "Envman · Environment Variable Manager", width - 4, self.title_attribute)
-        self.screen.addnstr(SUBTITLE_ROW, 2, str(self.store.target), width - 4, curses.A_DIM)
+        self.screen.addnstr(TITLE_ROW, 2, "Envman / Managed variables", width - 4, self.title_attribute)
+        mode_label = f"Filter · {self.filter_scope}" if self.filter_pattern else "Manage"
+        mode_text = f"Mode: {mode_label}"
+        subtitle_width = width - 4
+        target_text = truncate_for_display(
+            f"Store: {self.store.target}",
+            max(0, subtitle_width - len(mode_text) - 3),
+        )
+        draw_colored_line(
+            self.screen,
+            SUBTITLE_ROW,
+            width,
+            ((target_text, curses.A_DIM), ("  ·  ", curses.A_DIM), (mode_text, self.setting_attribute)),
+        )
         horizontal_line = getattr(curses, "ACS_HLINE", ord("-"))
         self.screen.hline(HEADER_DIVIDER_ROW, 2, horizontal_line, width - 4)
         sort_label = {
@@ -1449,16 +1513,14 @@ class EnvmanTUI:
         names = self.catalog_names()
         visible_rows, first_row, detail_rows = catalog_layout(height)
         self._ensure_visible(names, visible_rows)
+        selected_count = len(self.selected_names.intersection(names))
         draw_colored_line(
             self.screen,
             CATALOG_HINT_ROW,
             width,
             (
-                (f"{len(names)} shown · ", curses.A_DIM),
-                ("Space", self.number_attribute | curses.A_BOLD),
-                (" toggles · ", curses.A_DIM),
-                ("Up/Down", self.number_attribute | curses.A_BOLD),
-                (" moves", curses.A_DIM),
+                (str(selected_count), self.number_attribute | curses.A_BOLD),
+                (f" selected · {len(names)} shown", curses.A_DIM),
             ),
         )
         self.screen.hline(LIST_DIVIDER_ROW, 2, horizontal_line, width - 4)
@@ -1467,34 +1529,27 @@ class EnvmanTUI:
                 names[self.scroll_offset : self.scroll_offset + visible_rows],
                 start=self.scroll_offset,
             ):
-                row = first_row + index - self.scroll_offset
-                focused = index == self.selected
-                row_attribute = self.selected_attribute if focused else curses.A_NORMAL
                 marker = "[*]" if name in self.selected_names else "[ ]"
                 preview = display_value(name, self.store.values[name])
-                text_capacity = max(1, width - 10)
-                name_text = truncate_for_display(name, max(3, text_capacity // 2))
-                value_text = truncate_for_display(preview, max(0, text_capacity - len(name_text) - 3))
-                column = 4
-                remaining = width - 8
-                for text, attribute in (
-                    (marker, self.number_attribute | row_attribute),
-                    (" ", row_attribute),
-                    (name_text, self.name_attribute | row_attribute),
-                    (" = ", curses.A_DIM | row_attribute),
-                    (value_text, self.value_attribute | row_attribute),
-                ):
-                    if remaining <= 0:
-                        break
-                    self.screen.addnstr(row, column, text, remaining, attribute)
-                    used = min(len(text), remaining)
-                    column += used
-                    remaining -= used
+                draw_catalog_row(
+                    self.screen,
+                    first_row + index - self.scroll_offset,
+                    width,
+                    marker=marker,
+                    state_marker="",
+                    name=name,
+                    value=preview,
+                    marker_attribute=self.number_attribute | curses.A_BOLD,
+                    name_attribute=self.name_attribute,
+                    value_attribute=self.value_attribute,
+                    selected_attribute=self.selected_attribute,
+                    focused=index == self.selected,
+                )
         else:
             message = (
-                "No variables match the filter. Press F to change or clear it."
-                if self.store.values
-                else "No variables yet. Press A to create one."
+                "No variables match this filter. F edits it · M changes scope."
+                if self.filter_pattern
+                else "No variables yet. A adds one · I previews environment imports."
             )
             self.screen.addnstr(first_row, 4, message, width - 8, curses.A_DIM)
         self.draw_detail(width, first_row, visible_rows, detail_rows, horizontal_line)
@@ -1519,18 +1574,17 @@ class EnvmanTUI:
             height - 3,
             width,
             (
-                ("B", "ackup"),
-                ("I", "mport"),
-                ("J", "SON import"),
-                ("O", "rder"),
-                ("F", "ilter"),
-                ("M", "ode"),
-                ("[/]", "view"),
-                ("Esc/Q", "reload"),
+                ("B", "Backup"),
+                ("I", "Import"),
+                ("J", "Encrypted"),
+                ("F", "Filter"),
+                ("M", "Scope"),
+                ("[/]", "Detail"),
+                ("Q", "Quit"),
             ),
             key_attribute=self.number_attribute | curses.A_BOLD,
             label_attribute=curses.A_DIM,
-            separator="",
+            separator=" ",
         )
         status_width = width - 4
         self.screen.addnstr(
@@ -2061,8 +2115,8 @@ class EnvironmentImportTUI:
         self.filter_scope = "both"
         self.filter_pattern = ""
         self.selected_sources: set[str] = set()
-        self.status = "Space toggles a variable. A selects all shown. Enter imports. Esc returns to managed variables."
-        self.status_attribute = curses.A_REVERSE | curses.A_BOLD if colors_enabled else curses.A_NORMAL
+        self.status = "Ready · Space selects · A selects all · Enter imports · Esc returns."
+        self.status_attribute = curses.A_NORMAL
         self.source_attribute = curses.A_BOLD
         self.value_attribute = curses.A_NORMAL
         self.number_attribute = curses.A_NORMAL
@@ -2071,7 +2125,7 @@ class EnvironmentImportTUI:
         self.control_label_attribute = curses.A_BOLD
         self.setting_attribute = curses.A_BOLD
         self.pattern_attribute = curses.A_NORMAL
-        self.selected_attribute = curses.A_REVERSE if colors_enabled else curses.A_BOLD
+        self.selected_attribute = curses.A_BOLD
         self.applied = False
         self.last_name: str | None = None
 
@@ -2083,17 +2137,19 @@ class EnvironmentImportTUI:
             try:
                 curses.use_default_colors()
                 background = -1
+                foreground = -1
             except curses.error:
                 background = curses.COLOR_BLACK
-            curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-            curses.init_pair(2, curses.COLOR_GREEN, background)
-            curses.init_pair(3, curses.COLOR_YELLOW, background)
-            curses.init_pair(4, curses.COLOR_BLUE, background)
-            curses.init_pair(5, curses.COLOR_MAGENTA, background)
-            curses.init_pair(6, curses.COLOR_RED, background)
+                foreground = curses.COLOR_WHITE
+            curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
+            curses.init_pair(2, curses.COLOR_CYAN, background)
+            curses.init_pair(3, foreground, background)
+            curses.init_pair(4, curses.COLOR_CYAN, background)
+            curses.init_pair(5, curses.COLOR_CYAN, background)
+            curses.init_pair(6, curses.COLOR_YELLOW, background)
             curses.init_pair(
                 7,
-                208 if getattr(curses, "COLORS", 0) >= 256 else curses.COLOR_YELLOW,
+                curses.COLOR_CYAN,
                 background,
             )
             self.status_attribute = curses.color_pair(1) | curses.A_BOLD
@@ -2103,8 +2159,9 @@ class EnvironmentImportTUI:
             self.title_attribute = curses.color_pair(5) | curses.A_BOLD
             self.collision_attribute = curses.color_pair(6) | curses.A_BOLD
             self.control_label_attribute = curses.color_pair(7) | curses.A_BOLD
-            self.setting_attribute = curses.color_pair(2) | curses.A_BOLD
-            self.pattern_attribute = curses.color_pair(3)
+            self.setting_attribute = curses.color_pair(3)
+            self.pattern_attribute = curses.color_pair(3) | curses.A_DIM
+            self.selected_attribute = curses.A_REVERSE | curses.A_BOLD
         except curses.error:
             pass
 
@@ -2318,17 +2375,23 @@ class EnvironmentImportTUI:
             self.screen,
             TITLE_ROW,
             width,
-            (("Envman · Import Preview", self.title_attribute),),
+            (("Envman / Import preview", self.title_attribute),),
+        )
+        mode_label = f"Filter · {self.filter_scope}" if self.filter_pattern else "Import review"
+        mode_text = f"Mode: {mode_label}"
+        subtitle_width = width - 4
+        source_text = truncate_for_display(
+            f"Source: {self.source_label}",
+            max(0, subtitle_width - len(mode_text) - 3),
         )
         draw_colored_line(
             self.screen,
             SUBTITLE_ROW,
             width,
             (
-                ("Esc", self.number_attribute | curses.A_BOLD),
-                (" back · Source: ", curses.A_DIM),
-                (self.source_label, self.source_attribute),
-                (". Only variables not already managed are shown.", curses.A_DIM),
+                (source_text, self.source_attribute),
+                ("  ·  ", curses.A_DIM),
+                (mode_text, self.setting_attribute),
             ),
         )
         horizontal_line = getattr(curses, "ACS_HLINE", ord("-"))
@@ -2353,18 +2416,18 @@ class EnvironmentImportTUI:
         candidates = self.catalog_candidates()
         visible_rows, first_row, detail_rows = catalog_layout(height)
         self._ensure_visible(candidates, visible_rows)
+        importable_count = sum(candidate.selectable for candidate in candidates)
+        selected_count = sum(
+            candidate.selectable and candidate.source_name in self.selected_sources
+            for candidate in candidates
+        )
         draw_colored_line(
             self.screen,
             CATALOG_HINT_ROW,
             width,
             (
-                (f"{len(candidates)} shown · ", curses.A_DIM),
-                ("Space", self.number_attribute | curses.A_BOLD),
-                (" toggles · ", curses.A_DIM),
-                ("A", self.number_attribute | curses.A_BOLD),
-                (" selects all shown · ", curses.A_DIM),
-                ("Enter", self.number_attribute | curses.A_BOLD),
-                (" imports", curses.A_DIM),
+                (str(selected_count), self.number_attribute | curses.A_BOLD),
+                (f" selected · {len(candidates)} shown · {importable_count} importable", curses.A_DIM),
             ),
         )
         self.screen.hline(LIST_DIVIDER_ROW, 2, horizontal_line, width - 4)
@@ -2372,34 +2435,35 @@ class EnvironmentImportTUI:
             candidates[self.scroll_offset : self.scroll_offset + visible_rows],
             start=self.scroll_offset,
         ):
-            row = first_row + index - self.scroll_offset
-            focused = index == self.selected
-            row_attribute = self.selected_attribute if focused else curses.A_NORMAL
             marker = "[*]" if candidate.source_name in self.selected_sources else "[ ]"
-            state_marker = "! " if candidate.state == "collision" else ""
+            state_marker = "! " if candidate.state in {"collision", "invalid"} else ""
             value = self.display_candidate_value(candidate)
-            column = 4
-            remaining = width - 8
-            text_capacity = max(1, remaining - len(marker) - len(state_marker) - 1)
-            name_text = truncate_for_display(self.display_name(candidate), max(3, text_capacity // 2))
-            value_text = truncate_for_display(value, max(0, text_capacity - len(name_text) - 3))
             name_attribute = self.collision_attribute if candidate.state in {"collision", "invalid"} else self.source_attribute
-            for text, attribute in (
-                (marker, self.source_attribute | row_attribute),
-                (" ", row_attribute),
-                (state_marker, self.collision_attribute | row_attribute),
-                (name_text, name_attribute | row_attribute),
-                (" = ", curses.A_DIM | row_attribute),
-                (value_text, self.value_attribute | row_attribute),
-            ):
-                if remaining <= 0:
-                    break
-                self.screen.addnstr(row, column, text, remaining, attribute)
-                used = min(len(text), remaining)
-                column += used
-                remaining -= used
+            draw_catalog_row(
+                self.screen,
+                first_row + index - self.scroll_offset,
+                width,
+                marker=marker,
+                state_marker=state_marker,
+                name=self.display_name(candidate),
+                value=value,
+                marker_attribute=self.source_attribute,
+                name_attribute=name_attribute,
+                value_attribute=self.value_attribute,
+                selected_attribute=self.selected_attribute,
+                focused=index == self.selected,
+            )
         if not candidates:
-            self.screen.addnstr(first_row, 4, "No external variables match the filter.", width - 8, curses.A_DIM)
+            message = (
+                "No candidates match this filter. F edits it · M changes scope."
+                if self.filter_pattern
+                else (
+                    "No variables found in this source."
+                    if not self.candidates
+                    else "No new variables to import. All source variables are already managed."
+                )
+            )
+            self.screen.addnstr(first_row, 4, message, width - 8, curses.A_DIM)
         self.draw_detail(width, first_row, visible_rows, detail_rows, horizontal_line)
         self.screen.hline(height - 5, 2, horizontal_line, width - 4)
         draw_key_legend(
@@ -2408,27 +2472,27 @@ class EnvironmentImportTUI:
             width,
             (
                 ("Space", "Toggle"),
-                ("A", "ll"),
+                ("A", "All/clear"),
                 ("Enter", "Import"),
-                ("O", "rder"),
-                ("F", "ilter"),
-                ("M", "ode"),
+                ("O", "Sort"),
             ),
             key_attribute=self.number_attribute | curses.A_BOLD,
             label_attribute=curses.A_DIM,
-            separator="",
+            separator=" ",
         )
         draw_key_legend(
             self.screen,
             height - 3,
             width,
             (
-                ("[/]", "view"),
-                ("Esc", "back"),
+                ("F", "Filter"),
+                ("M", "Scope"),
+                ("[/]", "Detail"),
+                ("Esc", "Back"),
             ),
             key_attribute=self.number_attribute | curses.A_BOLD,
             label_attribute=curses.A_DIM,
-            separator="",
+            separator=" ",
         )
         status_width = width - 4
         self.screen.addnstr(

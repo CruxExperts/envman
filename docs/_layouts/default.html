@@ -3,24 +3,62 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f8f7">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#071b22">
     <meta name="description" content="{{ page.description | default: site.description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Envman">
+    <meta property="og:title" content="{{ page.title | default: site.title }}">
+    <meta property="og:description" content="{{ page.description | default: site.description }}">
+    <meta property="og:url" content="{{ page.url | absolute_url }}">
+    <meta property="og:image" content="{{ '/assets/social-preview.png' | absolute_url }}">
+    <meta property="og:image:width" content="1280">
+    <meta property="og:image:height" content="640">
+    <meta property="og:image:alt" content="Envman: persistent environment variables through a terminal UI and CLI">
+    <meta name="twitter:card" content="summary_large_image">
     <title>{{ page.title | default: site.title }}</title>
+    <link rel="canonical" href="{{ page.url | absolute_url }}">
+    <link rel="icon" href="{{ '/assets/favicon.svg' | relative_url }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
   </head>
-  <body>
+  <body class="{% if page.url == '/' %}home{% else %}document{% endif %}">
     <a class="skip-link" href="#content">Skip to content</a>
     <header class="site-header">
-      <a class="wordmark" href="{{ '/' | relative_url }}">envman<span aria-hidden="true">/</span></a>
-      <nav aria-label="Primary navigation">
-        <a href="{{ '/getting-started/installation' | relative_url }}">Install</a>
-        <a href="{{ '/guides/cli' | relative_url }}">CLI</a>
-        <a href="https://github.com/CruxExperts/envman">GitHub</a>
-      </nav>
+      <div class="site-header__inner">
+        <a class="wordmark" href="{{ '/' | relative_url }}" aria-label="Envman home">
+          <img src="{{ '/assets/brand-mark.svg' | relative_url }}" width="34" height="34" alt="">
+          <span>envman</span>
+        </a>
+        <nav aria-label="Primary navigation">
+          <a href="{{ '/getting-started/installation' | relative_url }}">Install</a>
+          <a href="{{ '/guides/tui' | relative_url }}">TUI</a>
+          <a href="{{ '/guides/cli' | relative_url }}">CLI</a>
+          <a href="{{ '/development/architecture' | relative_url }}">Architecture</a>
+          <a class="nav-github" href="https://github.com/CruxExperts/envman">GitHub <span aria-hidden="true">↗</span></a>
+        </nav>
+      </div>
     </header>
     <main id="content">{{ content }}</main>
     <footer class="site-footer">
-      <p>Envman is MIT-licensed software maintained by <a href="https://github.com/CruxExperts">CruxExperts</a>.</p>
-      <a href="{{ '/governance/publishing-checklist' | relative_url }}">Release policy</a>
+      <div class="site-footer__inner">
+        <div>
+          <a class="wordmark wordmark--footer" href="{{ '/' | relative_url }}" aria-label="Envman home">
+            <img src="{{ '/assets/brand-mark.svg' | relative_url }}" width="30" height="30" alt="">
+            <span>envman</span>
+          </a>
+          <p>Portable terminal environment-variable manager. <a href="https://github.com/CruxExperts/envman/blob/main/LICENSE">MIT licensed.</a></p>
+        </div>
+        <div class="site-footer__links" aria-label="Footer navigation">
+          <a href="{{ '/development/versioning-and-releases' | relative_url }}">Release process</a>
+          <a href="https://github.com/CruxExperts/envman/discussions">Discussions</a>
+          <a href="https://github.com/CruxExperts/envman/security/advisories/new">Security</a>
+        </div>
+        <div class="site-footer__legal">
+          <p>© 2026 Crux Experts LLC. All rights reserved.</p>
+          <p>Site created and hosted by <a href="https://www.cruxexperts.com/">Crux Experts LLC</a>.</p>
+        </div>
+      </div>
     </footer>
   </body>
 </html>

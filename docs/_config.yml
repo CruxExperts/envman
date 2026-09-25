@@ -1,10 +1,13 @@
-title: Envman
+title: Envman | Portable environment variables
 url: https://cruxexperts.github.io
 baseurl: /envman
-description: Portable terminal environment-variable manager
+description: Manage persistent Linux environment variables with a terminal UI, scriptable CLI, and encrypted backups.
+author: Crux Experts LLC
+lang: en-US
 markdown: kramdown
 kramdown:
   input: GFM
 exclude:
   - INDEX.md
   - index.yaml
+  - assets/README.md

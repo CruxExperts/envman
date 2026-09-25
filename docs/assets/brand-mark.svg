@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Envman brand mark</title>
+  <desc id="desc">An equals sign held between two square brackets.</desc>
+  <metadata>
+    <dc:title>Envman brand mark</dc:title>
+    <dc:creator>Crux Experts LLC</dc:creator>
+    <dc:source>https://www.cruxexperts.com/</dc:source>
+    <dc:rights>Copyright © 2026 Crux Experts LLC. Private asset. Property of Crux Experts LLC. Use, reproduction, modification, distribution, or publication without prior written permission is prohibited.</dc:rights>
+  </metadata>
+  <rect width="64" height="64" rx="12" fill="#083b43"/>
+  <path d="M22 15h-8v34h8M42 15h8v34h-8" fill="none" stroke="#dfff72" stroke-width="5" stroke-linecap="square"/>
+  <path d="M25 26h14M25 38h14" fill="none" stroke="#f7fbfa" stroke-width="5" stroke-linecap="square"/>
+</svg>

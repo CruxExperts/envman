@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="0 0 560 128" role="img" aria-labelledby="title desc">
+  <title id="title">Envman</title>
+  <desc id="desc">Envman wordmark with a bracketed equals symbol.</desc>
+  <metadata>
+    <dc:title>Envman dark-surface wordmark</dc:title>
+    <dc:creator>Crux Experts LLC</dc:creator>
+    <dc:source>https://www.cruxexperts.com/</dc:source>
+    <dc:rights>Copyright © 2026 Crux Experts LLC. Private asset. Property of Crux Experts LLC. Use, reproduction, modification, distribution, or publication without prior written permission is prohibited.</dc:rights>
+  </metadata>
+  <rect x="8" y="8" width="112" height="112" rx="20" fill="#dfff72"/>
+  <path d="M48 35H34v58h14M80 35h14v58H80" fill="none" stroke="#083b43" stroke-width="8"/>
+  <path d="M52 53h24M52 75h24" fill="none" stroke="#10252c" stroke-width="8"/>
+  <text x="146" y="88" fill="#f7fbfa" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="72" font-weight="750" letter-spacing="-3">envman</text>
+</svg>

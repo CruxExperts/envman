@@ -1,6 +1,6 @@
 ---
 layout: default
-title: Publishing checklist
+title: Historical v0.1.5 publishing checklist
 ---
 
 # Historical v0.1.5 publishing checklist
