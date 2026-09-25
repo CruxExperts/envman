@@ -2,6 +2,20 @@
 
 All notable changes are documented here.
 
+## [0.1.10] - 2026-09-24
+
+### Added
+
+- Add repository, global, and automatic agent-skill scopes with explicit targeting for all 20 agent shapes supported by LocalSetup 5.6.2.
+- Let `envman update` install or refresh the verified latest-release skill, including when the Envman tool version is already current.
+- Add a source-backed generator for canonical, native, and historical skill roots with release and registry hash provenance.
+
+### Changed
+
+- Make the latest stable LocalSetup release a mandatory Envman compatibility pin and verify it during CI and release preflight.
+- Prefer the shared `.agents/skills` root while safely refreshing existing agent-native roots such as `.codex/skills` and `.opencode/skills`.
+- Require LocalSetup integrations to resolve Envman through Envman's latest verified GitHub release without an Envman version pin.
+
 ## [0.1.9] - 2026-09-24
 
 ### Added

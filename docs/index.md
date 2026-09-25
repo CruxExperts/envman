@@ -7,7 +7,7 @@ description: Manage persistent Linux environment variables with a terminal UI, s
 <section class="home-stage" aria-labelledby="hero-title">
   <div class="home-stage__inner">
     <div class="home-stage__copy">
-      <p class="release-line">Envman 0.1.9 · Linux x86_64</p>
+      <p class="release-line">Envman 0.1.10 · Linux x86_64</p>
       <h1 id="hero-title">Persistent variables, without the startup-file sprawl.</h1>
       <p>Envman keeps a validated set of per-user environment variables in one managed location. Inspect and edit them in the terminal UI, or use the CLI for repeatable commands and JSON output.</p>
       <div class="actions" aria-label="Primary actions">
@@ -59,7 +59,7 @@ description: Manage persistent Linux environment variables with a terminal UI, s
   <div class="quickstart">
     <div>
       <h2 id="quick-start">Install the verified release.</h2>
-      <p>Envman 0.1.9 supports Linux x86_64, CPython 3.12, and <code>uv &gt;=0.11</code>.</p>
+      <p>Envman 0.1.10 supports Linux x86_64, CPython 3.12, and <code>uv &gt;=0.11</code>.</p>
       <a class="button" href="{{ '/getting-started/installation' | relative_url }}">Installation details</a>
     </div>
     <pre aria-label="Envman installation command"><code>uv run --python 3.12 --script \

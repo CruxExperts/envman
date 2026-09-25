@@ -32,7 +32,7 @@ After a verified install, the installer creates `${XDG_STATE_HOME:-$HOME/.local/
 - provider (`github-release-wheel`) and repository;
 - manifest URL;
 - verified wheel and runtime-constraints asset metadata;
-- installer version (`0.1.9` for receipts created by this release's installer) and `uv` versions.
+- installer version (`0.1.10` for receipts created by this release's installer) and `uv` versions.
 
 `envman update` reads that receipt and supports only its recorded provider. A standard public receipt points at GitHub's latest-release manifest. The updater fetches that source, rejects a candidate that is older than the recorded version, and reports `current` without reinstalling an equal tool version. `--check` stops after reporting availability. `--install-skill` can still install or refresh the equal release's verified skill for any supported scope and agent target. A tool update downloads and verifies the new assets, prefetches the prior assets, and writes the new receipt only after the replacement succeeds.
 
