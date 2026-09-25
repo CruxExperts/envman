@@ -23,7 +23,7 @@ documents:
     category_label: Guides
     category_slug: guides
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: reference
     tags: [cli, automation, json]
   - id: guide-backups
@@ -32,7 +32,7 @@ documents:
     category_label: Guides
     category_slug: guides
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: guide
     tags: [backups, encryption, migration]
   - id: reference-storage
@@ -41,7 +41,7 @@ documents:
     category_label: Reference
     category_slug: reference
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: reference
     tags: [storage, shells]
   - id: reference-install

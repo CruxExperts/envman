@@ -61,12 +61,15 @@ The standalone installer verifies the GitHub release manifest, immutable asset U
 
 ```text
 ${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf
-  -> load-env.sh and shell-specific loaders
-  -> backups/ (local tar.gz snapshots before managed-file writes)
+  -> authenticated ciphertext after first save
+  -> load-env.sh, shell-specific loaders, and a retained decryptor
+  -> backups/ (new environment snapshots contain ciphertext)
   -> ${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key (optional private mode-0600 encrypted-backup fallback; never created or replaced silently)
 
 ${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json
   -> installer receipt used by verified updates
+${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key
+  -> private key for the managed configuration; keep separate from data copies
 ```
 
 Start with:

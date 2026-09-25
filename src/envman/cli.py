@@ -7,13 +7,17 @@ import base64
 import binascii
 import argparse
 import curses
+import fcntl
+import hashlib
 import json
 import os
 import re
+import shlex
 import textwrap
 import secrets
 import stat
 import sys
+import io
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 import tempfile
 import tarfile
@@ -26,6 +30,18 @@ from urllib.parse import urlsplit, urlunsplit
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from ._retained_loader import install_retained_runtime
+from ._snapshot_migration import inspect_legacy_snapshots, migrate_legacy_snapshots
+from ._secure_store import (
+    MAX_ENVELOPE_BYTES,
+    SecureStoreError,
+    atomic_write_private,
+    decrypt_document,
+    encrypt_document,
+    is_encrypted_document,
+    load_or_create_file_key,
+    safe_read,
+)
 from ._release_protocol import ReleaseProtocolError, update as update_release
 
 APP_NAME = "envman"
@@ -916,6 +932,16 @@ def configuration_home(home: Path) -> Path:
     return path
 
 
+def state_home(home: Path) -> Path:
+    configured = os.environ.get("XDG_STATE_HOME")
+    if not configured:
+        return home / ".local" / "state"
+    path = Path(configured)
+    if not path.is_absolute():
+        raise StoreError("XDG_STATE_HOME must be an absolute path.")
+    return path
+
+
 
 class StoreError(Exception):
     """A durable environment file could not be managed safely."""
@@ -929,13 +955,18 @@ class EnvironmentStore:
     def __post_init__(self) -> None:
         self.utility_dir = self.config_home / "envman"
         self.encryption_key_path: Path = self.utility_dir / KEY_FILE_NAME
+        self.storage_key_path: Path = state_home(self.home) / "envman" / "storage.key"
         self.target = self.utility_dir / "environment.conf"
+        self.write_lock = self.utility_dir / ".environment.lock"
         self.backup_dir = self.utility_dir / "backups"
         self.loader = self.utility_dir / "load-env.sh"
         self.fish_loader = self.config_home / "fish" / "conf.d" / "envman.fish"
         self.lines: list[str] = []
         self.values: dict[str, str] = {}
         self.original_keys: set[str] = set()
+        self._loaded_fingerprint: bytes | None = None
+        self._has_loaded_state = False
+        self._loaded_encrypted = False
 
     @staticmethod
     def validate_name(name: str) -> None:
@@ -945,25 +976,44 @@ class EnvironmentStore:
     def validate_value(value: str) -> None:
         validate_value(value)
 
-    def load(self) -> None:
+    def load(self, *, allow_legacy_with_key: bool = False) -> None:
         self.lines = []
         self.values = {}
         self.original_keys = set()
-        if not self.target.exists():
-            return
+        self._loaded_fingerprint = None
+        self._has_loaded_state = True
+        self._loaded_encrypted = False
         if self.target.is_symlink():
             raise StoreError(f"Refusing to manage symlinked environment file: {self.target}")
+        if not self.target.exists():
+            return
         try:
-            content = self.target.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise StoreError(f"Cannot read {self.target}: {exc}") from exc
+            raw_content = safe_read(self.target, MAX_ENVELOPE_BYTES)
+            self._loaded_fingerprint = hashlib.sha256(raw_content).digest()
+            self._loaded_encrypted = is_encrypted_document(raw_content)
+            if self._loaded_encrypted:
+                key = load_or_create_file_key(self.storage_key_path, create=False)
+                raw_content = decrypt_document(raw_content, key)
+            elif not allow_legacy_with_key and (self.storage_key_path.exists() or self.storage_key_path.is_symlink()):
+                raise StoreError(
+                    "Plaintext managed environment conflicts with an existing storage key; "
+                    "run envman migrate-storage --apply."
+                )
+            content = raw_content.decode("utf-8")
+        except SecureStoreError as exc:
+            raise StoreError(f"Cannot safely load {self.target}: {exc}") from exc
+        except UnicodeDecodeError as exc:
+            raise StoreError(f"Managed environment file is not valid UTF-8: {self.target}") from exc
 
-        self.lines = content.splitlines()
+        self.lines = content.split("\n") if content else []
+        if self.lines and self.lines[-1] == "" and content.endswith("\n"):
+            self.lines.pop()
+        self.lines = [line[:-1] if line.endswith("\r") else line for line in self.lines]
         for line in self.lines:
             if not line or line.startswith("#"):
                 continue
             if "=" not in line:
-                raise StoreError(f"Unsupported line in {self.target}: {line!r}")
+                raise StoreError(f"Unsupported line in {self.target}.")
             name, value = line.split("=", 1)
             validate_assignment(name, value)
             if name in self.values:
@@ -971,24 +1021,48 @@ class EnvironmentStore:
             self.values[name] = value
             self.original_keys.add(name)
 
+    def legacy_plaintext_snapshot_count(self) -> int:
+        try:
+            return inspect_legacy_snapshots(self.backup_dir)
+        except SecureStoreError as exc:
+            raise StoreError(f"Cannot safely inspect environment snapshots: {exc}") from exc
+
     def backup(self, path: Path) -> None:
-        if not path.exists():
-            return
         if path.is_symlink():
             raise StoreError(f"Refusing to back up symlinked path: {path}")
+        if not path.exists():
+            return
+        if self.backup_dir.is_symlink():
+            raise StoreError(f"Refusing to write through symlinked backup directory: {self.backup_dir}")
         self.backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if self.backup_dir.is_symlink():
+            raise StoreError(f"Refusing to write through symlinked backup directory: {self.backup_dir}")
         os.chmod(self.backup_dir, 0o700)
-        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        archive = self.backup_dir / f"{path.name}.{stamp}.tar.gz"
-        with tarfile.open(archive, "w:gz") as bundle:
-            bundle.add(path, arcname=path.name, recursive=False)
-        os.chmod(archive, 0o600)
+        try:
+            contents = safe_read(path, MAX_ENVELOPE_BYTES)
+            if path == self.target and not is_encrypted_document(contents):
+                key = load_or_create_file_key(self.storage_key_path, create=True)
+                contents = encrypt_document(contents, key)
+            archive_bytes = io.BytesIO()
+            with tarfile.open(fileobj=archive_bytes, mode="w:gz") as bundle:
+                member = tarfile.TarInfo(path.name)
+                member.size = len(contents)
+                member.mode = 0o600
+                member.mtime = int(datetime.now(UTC).timestamp())
+                bundle.addfile(member, io.BytesIO(contents))
+            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+            archive = self.backup_dir / f"{path.name}.{stamp}.{secrets.token_hex(4)}.tar.gz"
+            atomic_write_private(archive, archive_bytes.getvalue())
+        except SecureStoreError as exc:
+            raise StoreError(f"Cannot safely snapshot {path}: {exc}") from exc
 
     def write_values(self) -> None:
         if self.target.is_symlink():
             raise StoreError(f"Refusing to replace symlinked environment file: {self.target}")
         self.target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.backup(self.target)
+        if self.target.parent.is_symlink():
+            raise StoreError(f"Refusing to write through symlinked environment directory: {self.target.parent}")
+        os.chmod(self.target.parent, 0o700)
         seen: set[str] = set()
         rendered: list[str] = []
         for line in self.lines:
@@ -1003,34 +1077,84 @@ class EnvironmentStore:
         for name in sorted(self.values):
             if name not in seen:
                 rendered.append(f"{name}={self.values[name]}")
-        temporary = self.target.with_name(f".{self.target.name}.tmp")
+        lock_fd: int | None = None
         try:
-            temporary.write_text("\n".join(rendered) + ("\n" if rendered else ""), encoding="utf-8")
-            os.chmod(temporary, 0o600)
-            temporary.replace(self.target)
+            flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+            lock_fd = os.open(self.write_lock, flags, 0o600)
+            lock_metadata = os.fstat(lock_fd)
+            if not stat.S_ISREG(lock_metadata.st_mode) or lock_metadata.st_uid != os.getuid():
+                raise StoreError("Environment write lock is not a private regular file.")
+            os.fchmod(lock_fd, 0o600)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            if self.target.is_symlink():
+                raise StoreError(f"Refusing to replace symlinked environment file: {self.target}")
+            current_document = safe_read(self.target, MAX_ENVELOPE_BYTES) if self.target.exists() else None
+            current_fingerprint = hashlib.sha256(current_document).digest() if current_document is not None else None
+            if self._has_loaded_state and current_fingerprint != self._loaded_fingerprint:
+                raise StoreError("Managed environment changed since it was loaded; reload before saving.")
+            self.backup(self.target)
+            plaintext = ("\n".join(rendered) + ("\n" if rendered else "")).encode("utf-8")
+            key = load_or_create_file_key(
+                self.storage_key_path,
+                create=current_document is None or not is_encrypted_document(current_document),
+            )
+            encrypted = encrypt_document(plaintext, key)
+            atomic_write_private(self.target, encrypted)
+            self._loaded_fingerprint = hashlib.sha256(encrypted).digest()
+            self._has_loaded_state = True
+            self._loaded_encrypted = True
+            self.lines = rendered
+        except SecureStoreError as exc:
+            raise StoreError(f"Cannot safely write encrypted environment file {self.target}: {exc}") from exc
         except OSError as exc:
-            temporary.unlink(missing_ok=True)
-            raise StoreError(f"Cannot write {self.target}: {exc}") from exc
-        self.lines = rendered
+            raise StoreError(f"Cannot lock or write encrypted environment file {self.target}: {exc}") from exc
+        finally:
+            if lock_fd is not None:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                finally:
+                    os.close(lock_fd)
 
     def _install_posix_loader(self) -> None:
         self.utility_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.utility_dir.is_symlink() or self.loader.is_symlink():
             raise StoreError("Refusing to write through a symlink in envman configuration.")
+        os.chmod(self.utility_dir, 0o700)
+        runtime = install_retained_runtime(self.utility_dir)
+        python = Path(getattr(sys, "_base_executable", sys.executable)).resolve()
         source = f'''#!/bin/sh
 # Managed by {APP_NAME}; this file remains usable if the application is removed.
-_envman_config_home="${{XDG_CONFIG_HOME:-$HOME/.config}}"
-case "$_envman_config_home" in /*) ;; *) _envman_config_home="$HOME/.config" ;; esac
-_envman_environment_file="$_envman_config_home/envman/environment.conf"
-if [ -r "$_envman_environment_file" ]; then
-  while IFS= read -r _envman_environment_line || [ -n "$_envman_environment_line" ]; do
-    case "$_envman_environment_line" in
-      ''|\\#*) continue ;;
+_envman_load_environment() {{
+  set -- "${{XDG_CONFIG_HOME:-$HOME/.config}}" {shlex.quote(str(python))} {shlex.quote(str(runtime))}
+  case "$1" in /*) ;; *) set -- "$HOME/.config" "$2" "$3" ;; esac
+  [ -r "$1/envman/environment.conf" ] || return 0
+  set -- "$(XDG_CONFIG_HOME="$1" "$2" "$3" --shell-protocol)"
+  case "$1" in
+    'ENVMAN-OK') return 0 ;;
+    'ENVMAN-OK
+'*) set -- "${{1#'ENVMAN-OK
+'}}" ;;
+    *) return 1 ;;
+  esac
+  while [ -n "$1" ]; do
+    case "$1" in
+      *'
+'*)
+        set -- "${{1%%'
+'*}}" "${{1#*'
+'}}"
+        ;;
+      *)
+        set -- "$1" ""
+        ;;
     esac
-    export "$_envman_environment_line" || printf '%s\n' "envman: skipped invalid environment assignment" >&2
-  done < "$_envman_environment_file"
-fi
-unset _envman_config_home _envman_environment_file _envman_environment_line
+    export "$1" || printf '%s\n' "envman: skipped invalid environment assignment" >&2
+    set -- "$2"
+  done
+  return 0
+}}
+_envman_load_environment
+return $?
 '''
         self.loader.write_text(source, encoding="utf-8")
         os.chmod(self.loader, 0o600)
@@ -1044,32 +1168,45 @@ unset _envman_config_home _envman_environment_file _envman_environment_line
         profile.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with profile.open("a", encoding="utf-8") as handle:
             handle.write(f"\n{MARKER_START}\n")
-            handle.write('_envman_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"\n')
-            handle.write('case "$_envman_config_home" in /*) ;; *) _envman_config_home="$HOME/.config" ;; esac\n')
-            handle.write('[ -r "$_envman_config_home/envman/load-env.sh" ] && . "$_envman_config_home/envman/load-env.sh"\n')
-            handle.write('unset _envman_config_home\n')
+            handle.write('case "${XDG_CONFIG_HOME:-$HOME/.config}" in\n')
+            handle.write('  /*) [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/envman/load-env.sh" ] && . "${XDG_CONFIG_HOME:-$HOME/.config}/envman/load-env.sh" ;;\n')
+            handle.write('  *) [ -r "$HOME/.config/envman/load-env.sh" ] && . "$HOME/.config/envman/load-env.sh" ;;\n')
+            handle.write('esac\n')
             handle.write(f"{MARKER_END}\n")
 
     def _install_fish_loader(self) -> None:
         if self.fish_loader.is_symlink():
             raise StoreError(f"Refusing to update symlinked fish loader: {self.fish_loader}")
         self.fish_loader.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        source = '''# Managed by envman; remains usable if the application is removed.
+        runtime = install_retained_runtime(self.utility_dir)
+        python = Path(getattr(sys, "_base_executable", sys.executable)).resolve()
+        fish_quote = lambda value: "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+        source = f'''# Managed by envman; remains usable if the application is removed.
 set -l envman_config_home "$HOME/.config"
 if set -q XDG_CONFIG_HOME; and string match -qr '^/' -- "$XDG_CONFIG_HOME"
     set envman_config_home "$XDG_CONFIG_HOME"
 end
-set -l envman_environment_file "$envman_config_home/envman/environment.conf"
-if test -r "$envman_environment_file"
-    while read -l envman_environment_line
-        if test -z "$envman_environment_line"; or string match -qr '^#' -- "$envman_environment_line"
-            continue
-        end
+set -l envman_python {fish_quote(python)}
+set -l envman_runtime {fish_quote(runtime)}
+if test -r "$envman_config_home/envman/environment.conf"
+    set -lx XDG_CONFIG_HOME "$envman_config_home"
+    set -l envman_environment_values (command "$envman_python" "$envman_runtime" --shell-protocol)
+    set -l envman_helper_status $status
+    if test $envman_helper_status -ne 0
+        echo 'envman: could not unlock or validate managed environment' >&2
+        return $envman_helper_status
+    end
+    if test "$envman_environment_values[1]" != ENVMAN-OK
+        echo 'envman: could not unlock or validate managed environment' >&2
+        return 1
+    end
+    set -e envman_environment_values[1]
+    for envman_environment_line in $envman_environment_values
         set -l envman_environment_parts (string split -m1 '=' -- "$envman_environment_line")
         if test (count $envman_environment_parts) -eq 2
             set -gx $envman_environment_parts[1] $envman_environment_parts[2]
         end
-    end < "$envman_environment_file"
+    end
 end
 '''
         self.fish_loader.write_text(source, encoding="utf-8")
@@ -2427,6 +2564,15 @@ def build_cli_parser() -> argparse.ArgumentParser:
     command("init", help="Install shell loaders without adding a variable.")
     command("target", help="Show the managed configuration file location.")
     command("check", help="Validate the managed configuration.")
+    migrate_storage_parser = command(
+        "migrate-storage",
+        help="Preview or encrypt historical plaintext environment snapshots.",
+    )
+    migrate_storage_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Encrypt the current store and historical plaintext environment snapshots.",
+    )
     update_parser = command("update", help="Check for or install a verified GitHub release update.")
     update_parser.add_argument("--check", action="store_true", help="Report whether an update is available without installing it.")
 
@@ -2867,10 +3013,78 @@ def run_cli(arguments: argparse.Namespace, store: EnvironmentStore) -> int:
         )
         return EXIT_SUCCESS
     if command == "check":
+        legacy_snapshots = store.legacy_plaintext_snapshot_count()
+        summary = f"OK: {len(store.values)} variable(s) in {store.target}"
+        if store.target.exists() and not store._loaded_encrypted:
+            summary += "; current plaintext store will be encrypted on its next save"
+        if legacy_snapshots:
+            summary += f"; warning: {legacy_snapshots} legacy plaintext snapshot(s) remain"
         emit_cli(
-            {"target": str(store.target), "variables": len(store.values)},
+            {
+                "legacy_plaintext_snapshots": legacy_snapshots,
+                "storage_encrypted": store._loaded_encrypted,
+                "target": str(store.target),
+                "variables": len(store.values),
+            },
             arguments.json,
-            f"OK: {len(store.values)} variable(s) in {store.target}",
+            summary,
+        )
+        return EXIT_SUCCESS
+    if command == "migrate-storage":
+        pending = store.legacy_plaintext_snapshot_count()
+        current_plaintext = store.target.exists() and not store._loaded_encrypted
+        if not arguments.apply:
+            emit_cli(
+                {
+                    "action": "preview",
+                    "current_plaintext": current_plaintext,
+                    "legacy_plaintext_snapshots": pending,
+                },
+                arguments.json,
+                f"Storage migration preview: current plaintext file: {'yes' if current_plaintext else 'no'}; "
+                f"legacy plaintext snapshots: {pending}. Use --apply to convert.",
+            )
+            return EXIT_SUCCESS
+
+        if current_plaintext:
+            store.save()
+        migrated = 0
+        if pending:
+            lock_descriptor: int | None = None
+            try:
+                flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+                lock_descriptor = os.open(store.write_lock, flags, 0o600)
+                metadata = os.fstat(lock_descriptor)
+                if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+                    raise StoreError("Environment write lock is not a private regular file.")
+                os.fchmod(lock_descriptor, 0o600)
+                fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+                key = load_or_create_file_key(
+                    store.storage_key_path,
+                    create=not store.target.exists(),
+                )
+                migrated = migrate_legacy_snapshots(store.backup_dir, key)
+            except SecureStoreError as exc:
+                raise StoreError(f"Cannot safely migrate environment snapshots: {exc}") from exc
+            except OSError as exc:
+                raise StoreError(f"Cannot lock environment snapshots for migration: {exc}") from exc
+            finally:
+                if lock_descriptor is not None:
+                    try:
+                        fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+                    finally:
+                        os.close(lock_descriptor)
+        remaining = store.legacy_plaintext_snapshot_count()
+        emit_cli(
+            {
+                "action": "migrated",
+                "current_encrypted": store._loaded_encrypted,
+                "legacy_plaintext_snapshots": remaining,
+                "migrated_snapshots": migrated,
+            },
+            arguments.json,
+            f"Encrypted current environment and {migrated} historical snapshot(s); "
+            f"{remaining} plaintext snapshot(s) remain.",
         )
         return EXIT_SUCCESS
     if command == "list":
@@ -3003,7 +3217,7 @@ def main() -> NoReturn:
                     raise SystemExit(run_update_cli(parsed))
                 home = Path.home()
                 store = EnvironmentStore(home, configuration_home(home))
-                store.load()
+                store.load(allow_legacy_with_key=parsed.command == "migrate-storage")
                 raise SystemExit(run_cli(parsed, store))
             except CommandError as exc:
                 print(f"envman: {exc}", file=sys.stderr)

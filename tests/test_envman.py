@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import io
 import json
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,7 +16,26 @@ from unittest import mock
 from envman import cli as envman
 
 
-class EnvmanInputTests(unittest.TestCase):
+class IsolatedEnvmanTestCase(unittest.TestCase):
+    def setUp(self) -> None:
+        state_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(state_directory.cleanup)
+        environment_patch = mock.patch.dict(
+            envman.os.environ,
+            {"XDG_STATE_HOME": state_directory.name},
+        )
+        environment_patch.start()
+        self.addCleanup(environment_patch.stop)
+        runtime_patch = mock.patch.object(
+            envman,
+            "install_retained_runtime",
+            side_effect=lambda utility_dir: utility_dir / "loader-runtime.py",
+        )
+        runtime_patch.start()
+        self.addCleanup(runtime_patch.stop)
+
+
+class EnvmanInputTests(IsolatedEnvmanTestCase):
     def test_variable_names_and_values_are_trimmed_before_validation(self) -> None:
         self.assertEqual(envman.normalize_name("  OMNIROUTE_BASE_URL  "), "OMNIROUTE_BASE_URL")
         self.assertEqual(envman.normalize_name("service-url"), "service_url")
@@ -1015,7 +1036,125 @@ class EnvmanInputTests(unittest.TestCase):
         self.assertTrue(all(index > 0 and method_names[index - 1] == "clrtoeol" for index in prompt_writes))
 
 
-class EnvmanPersistenceTests(unittest.TestCase):
+class EnvmanPersistenceTests(IsolatedEnvmanTestCase):
+    def test_legacy_store_migrates_to_encrypted_storage_and_snapshots_ciphertext(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            home = root / "home"
+            config = home / ".config"
+            state = root / "state"
+            home.mkdir()
+            with mock.patch.dict(envman.os.environ, {"XDG_STATE_HOME": str(state)}):
+                store = envman.EnvironmentStore(home, config)
+                store.target.parent.mkdir(parents=True, mode=0o700)
+                original = "PUBLIC_VALUE=first\u0085middle\u2028last\n"
+                store.target.write_text(original, encoding="utf-8")
+                store.target.chmod(0o600)
+
+                store.load()
+                self.assertEqual(store.values, {"PUBLIC_VALUE": "first\u0085middle\u2028last"})
+                store.values["PUBLIC_VALUE"] = "updated"
+                store.write_values()
+
+                encrypted_document = store.target.read_bytes()
+                self.assertTrue(envman.is_encrypted_document(encrypted_document))
+                self.assertEqual(store.storage_key_path, state / "envman" / "storage.key")
+                self.assertNotEqual(store.storage_key_path, store.encryption_key_path)
+                self.assertEqual(store.storage_key_path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(store.storage_key_path.parent.stat().st_mode & 0o777, 0o700)
+
+                snapshots = list(store.backup_dir.glob("environment.conf.*.tar.gz"))
+                self.assertEqual(len(snapshots), 1)
+                with tarfile.open(snapshots[0], "r:gz") as archive:
+                    snapshot = archive.extractfile("environment.conf")
+                    self.assertIsNotNone(snapshot)
+                    encrypted_snapshot = snapshot.read() if snapshot is not None else b""
+                self.assertTrue(envman.is_encrypted_document(encrypted_snapshot))
+                key = envman.load_or_create_file_key(store.storage_key_path, create=False)
+                self.assertEqual(envman.decrypt_document(encrypted_snapshot, key).decode("utf-8"), original)
+
+                reloaded = envman.EnvironmentStore(home, config)
+                reloaded.load()
+                self.assertEqual(reloaded.values, {"PUBLIC_VALUE": "updated"})
+
+    def test_encrypted_store_never_regenerates_a_missing_storage_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.target.parent.mkdir(parents=True, mode=0o700)
+            key = envman.Fernet.generate_key()
+            store.target.write_bytes(envman.encrypt_document(b"PUBLIC_VALUE=safe\n", key))
+            store.target.chmod(0o600)
+
+            with self.assertRaisesRegex(envman.StoreError, "Cannot safely load"):
+                store.load()
+
+            self.assertFalse(store.storage_key_path.exists())
+
+    def test_malformed_legacy_line_is_not_echoed_in_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.target.parent.mkdir(parents=True, mode=0o700)
+            sensitive_line = "SECRET_CANARY_VALUE_WITHOUT_EQUALS"
+            store.target.write_text(sensitive_line + "\n", encoding="utf-8")
+            store.target.chmod(0o600)
+
+            with self.assertRaises(envman.StoreError) as raised:
+                store.load()
+
+            self.assertNotIn(sensitive_line, str(raised.exception))
+
+    def test_stale_environment_store_cannot_overwrite_a_concurrent_save(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            original = envman.EnvironmentStore(home, home / ".config")
+            original.target.parent.mkdir(parents=True, mode=0o700)
+            original.target.write_text("PUBLIC_VALUE=before\n", encoding="utf-8")
+            original.target.chmod(0o600)
+            first = envman.EnvironmentStore(home, home / ".config")
+            second = envman.EnvironmentStore(home, home / ".config")
+            first.load()
+            second.load()
+            first.values["PUBLIC_VALUE"] = "first update"
+            second.values["PUBLIC_VALUE"] = "stale update"
+
+            first.write_values()
+            with self.assertRaisesRegex(envman.StoreError, "changed since it was loaded"):
+                second.write_values()
+
+            current = envman.EnvironmentStore(home, home / ".config")
+            current.load()
+            self.assertEqual(current.values, {"PUBLIC_VALUE": "first update"})
+
+    def test_check_reports_historical_plaintext_environment_snapshots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            home = Path(temporary_directory) / "home"
+            home.mkdir()
+            store = envman.EnvironmentStore(home, home / ".config")
+            store.backup_dir.mkdir(parents=True, mode=0o700)
+            legacy = store.backup_dir / "environment.conf.20260101T000000Z.tar.gz"
+            raw = io.BytesIO()
+            with tarfile.open(fileobj=raw, mode="w:gz") as archive:
+                member = tarfile.TarInfo("environment.conf")
+                member.size = len(b"PUBLIC_VALUE=old\n")
+                member.mode = 0o600
+                archive.addfile(member, io.BytesIO(b"PUBLIC_VALUE=old\n"))
+            legacy.write_bytes(raw.getvalue())
+            legacy.chmod(0o600)
+
+            with contextlib.redirect_stdout(io.StringIO()) as standard_output:
+                result = envman.run_cli(
+                    argparse.Namespace(command="check", json=True),
+                    store,
+                )
+
+            self.assertEqual(result, envman.EXIT_SUCCESS)
+            self.assertEqual(json.loads(standard_output.getvalue())["legacy_plaintext_snapshots"], 1)
+
     def test_add_persists_trimmed_value_and_reloads_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             home = Path(temporary_directory) / "home"
@@ -1399,7 +1538,7 @@ class EnvmanPersistenceTests(unittest.TestCase):
 
 
 
-class EnvmanCliTests(unittest.TestCase):
+class EnvmanCliTests(IsolatedEnvmanTestCase):
     def run_command(
         self,
         store: envman.EnvironmentStore,

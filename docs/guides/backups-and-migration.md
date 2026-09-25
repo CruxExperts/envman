@@ -5,7 +5,7 @@ title: Encrypted backups and migration
 
 # Encrypted backups and migration
 
-Envman writes encrypted backups as authenticated JSON envelopes. When `ENVMAN_BACKUP_KEY` is explicitly configured, Envman uses that value. If it is unset, Envman may use a generated private fallback at `$XDG_CONFIG_HOME/envman/encryption.key` when `XDG_CONFIG_HOME` is set, or `$HOME/.config/envman/encryption.key` otherwise, with mode `0600`. The fallback is separate from `environment.conf`, which is not encrypted.
+Envman writes portable encrypted backups as authenticated JSON envelopes. When `ENVMAN_BACKUP_KEY` is explicitly configured, Envman uses that value. If it is unset, Envman may use a generated private fallback at `$XDG_CONFIG_HOME/envman/encryption.key` when `XDG_CONFIG_HOME` is set, or `$HOME/.config/envman/encryption.key` otherwise, with mode `0600`. This export credential is separate from the automatically generated storage key and the encrypted `environment.conf` file.
 
 Envman never creates or replaces the fallback key silently. At TUI startup, Envman clearly prompts before generating a missing key; declining leaves state unchanged and encrypted-backup operations unavailable. Existing key files are preserved, and malformed key files fail closed.
 
@@ -32,6 +32,19 @@ The CLI `import-backup` command and TUI **J** preview the decrypted candidates b
 An import rejects a missing or incorrect key, a malformed or oversized JSON envelope, unsupported encryption metadata, unauthenticated ciphertext, duplicate names, invalid names or values, and unsafe `PATH` or URL values. Secret recognition and the six-character minimum are the same as for normal edits; see [storage and shell loading](../reference/storage-and-shell-loading.md).
 
 ## Migration procedure
+
+To convert an older local plaintext store and its automatic environment snapshots in place, first retain a recoverable encrypted export, then preview and apply:
+
+```bash
+envman export ./envman-recovery.json
+envman migrate-storage
+envman migrate-storage --apply
+envman check
+```
+
+The conversion verifies each replacement archive, preserves its filename, and does not touch profile snapshots. It cannot erase external backups, filesystem snapshots, or SSD remnants. Keep the storage key separate from copies of the encrypted configuration. The portable export uses its own backup credential, which you need to restore onto another machine.
+
+For migration between machines:
 
 1. On the source machine, configure `ENVMAN_BACKUP_KEY` without placing it in a file or command history, or use the approved fallback key, then run `envman export` or use **B** in the TUI.
 2. Transfer the encrypted JSON through a channel appropriate for sensitive data. The file is encrypted, but the key still needs separate protection.

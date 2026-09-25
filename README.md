@@ -6,7 +6,7 @@ Envman manages durable, per-user environment variables on Linux. Use the termina
 - Linux x86_64 releases for CPython 3.12 and `uv >=0.11`
 - A verified GitHub-release installer and receipt-directed updates
 - A curses TUI and a scriptable CLI with JSON output
-- Encrypted backup export and selective import
+- Encrypted managed storage, encrypted backup export, and selective import
 
 ## Install
 
@@ -70,9 +70,9 @@ Sensitive values are masked in normal TUI and CLI output. Values of six to nine 
 
 ## What Envman changes
 
-Envman stores assignments in `${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf` with private permissions. Saving also installs small, marked loaders for supported POSIX shells and Fish. Existing shell profile text is preserved, and comments or blank lines in the managed file remain in place. When an earlier file exists, writes create timestamped mode-`0600` local snapshots under the Envman backup directory.
+Envman stores assignments in `${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf` with private permissions. The first save creates a separate random storage key under `${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key` and encrypts the managed file. Subsequent automatic environment snapshots contain ciphertext. Saving also installs marked loaders for supported POSIX shells and Fish. Existing shell profile text, comments, and assignment order remain intact.
 
-The configuration file is not an encrypted secret store. Protect the configuration directory and the process environment that loads it. Encrypted export is separate:
+The storage key is a private file so desktop and unattended SSH shells can load values without a new prompt. Anyone with both the key and encrypted file can decrypt the values. `envman check` reports older plaintext snapshots; `envman migrate-storage` previews their conversion, and `envman migrate-storage --apply` encrypts them. Encrypted export uses an independent backup credential:
 
 ```bash
 envman export backup.json
@@ -92,7 +92,7 @@ envman update --check
 envman update
 ```
 
-An update refuses a downgrade. If a verified update fails, Envman restores the previous wheel and receipt. `uv tool uninstall envman` removes the installed command; the managed configuration, local backups, and shell loader files are separate and remain until you remove them. See [installation sources and updates](docs/reference/install-source-and-updates.md) for receipt recovery and intentional rollback.
+An update refuses a downgrade. If a verified update fails, Envman restores the previous wheel and receipt. `uv tool uninstall envman` removes the installed command; the managed configuration, local backups, shell loader files, and a private retained decryptor remain so new shells can still load the encrypted store. Removing the retained decryptor or its Python runtime stops that loading. See [installation sources and updates](docs/reference/install-source-and-updates.md) for receipt recovery and intentional rollback.
 
 ## Documentation and support
 

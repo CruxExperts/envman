@@ -10,7 +10,7 @@ Include a concise description, affected Envman version or release asset, reprodu
 
 This policy covers Envman's source, release installer, published release assets, and repository automation. It does not make the local `uv` executable, Python runtime, shell configuration, GitHub account, PyPI, or the rest of the machine part of Envman's security boundary.
 
-Envman masks sensitive values in ordinary TUI and CLI output, but a caller that requests `--reveal`, reads the managed file, or receives the process environment can still obtain them. The managed configuration and automatic local snapshots are not encrypted. Encrypted backup files are protected by `ENVMAN_BACKUP_KEY`; protect that password and the backup file separately.
+Envman masks sensitive values in ordinary TUI and CLI output, but a caller that requests `--reveal` or receives the process environment can still obtain them. New managed configurations and automatic environment snapshots use authenticated encryption. The prompt-free storage key is kept in a private file under the user's state directory, so copying both that key and the ciphertext defeats this protection. An unlocked user or root can also retrieve values. Existing plaintext configurations encrypt on their next save; `envman migrate-storage --apply` also converts historical environment snapshots. External and filesystem backups remain outside Envman's control. Encrypted export files use a separate `ENVMAN_BACKUP_KEY` or approved backup key file; protect that credential separately.
 
 ## Installation trust
 

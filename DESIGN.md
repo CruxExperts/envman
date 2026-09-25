@@ -26,4 +26,4 @@ Prompts occupy the status row and clear that row before each redraw. `Q` and `Es
 
 ## Boundary
 
-The TUI is an operator surface, not an encrypted vault. File permissions, process-environment handling, encrypted backup export, and release verification are separate controls documented in [the storage reference](docs/reference/storage-and-shell-loading.md), [the backup guide](docs/guides/backups-and-migration.md), and [the installation reference](docs/reference/install-source-and-updates.md).
+The TUI is an operator surface over an encrypted local store. File-key protection, process-environment handling, encrypted backup export, and release verification are separate controls documented in [the storage reference](docs/reference/storage-and-shell-loading.md), [the backup guide](docs/guides/backups-and-migration.md), and [the installation reference](docs/reference/install-source-and-updates.md).

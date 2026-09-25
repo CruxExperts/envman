@@ -47,7 +47,7 @@ Imports preserve the process value bytes. URL names are checked for valid URL sy
 
 ## Encrypted backup commands
 
-When `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. If it is unset, Envman may use the private mode-`0600` fallback at `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`. The fallback is separate from `environment.conf`, which is not encrypted.
+When `ENVMAN_BACKUP_KEY` is explicitly configured, encrypted backups use it. If it is unset, Envman may use the private mode-`0600` fallback at `${XDG_CONFIG_HOME:-$HOME/.config}/envman/encryption.key`. This backup credential is separate from the storage key at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key`; the managed `environment.conf` is encrypted after the first save. `migrate-storage` previews older plaintext environment snapshots; `migrate-storage --apply` encrypts them after preserving a recovery export.
 
 For automation or AI agents, key generation requires the dedicated explicit command:
 

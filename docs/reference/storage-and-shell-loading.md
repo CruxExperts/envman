@@ -11,7 +11,9 @@ Envman stores managed assignments in:
 ${XDG_CONFIG_HOME:-$HOME/.config}/envman/environment.conf
 ```
 
-When Envman creates the directory it uses mode `0700`; `environment.conf` and the generated loader files are written with mode `0600`. `environment.conf` is not encrypted. `XDG_CONFIG_HOME`, when set, must be an absolute path. `envman target` prints the resolved path. `envman init` creates the directory and installs shell loaders without adding a variable; saving a variable also installs or refreshes the loaders.
+When Envman creates the directory it uses mode `0700`; `environment.conf` and the generated loader files are written with mode `0600`. New saves encrypt the complete configuration with an authenticated format, including comments and assignment order. The random storage key is a different file at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/storage.key`, with mode `0600` in a private directory. `XDG_CONFIG_HOME` and `XDG_STATE_HOME`, when set, must be absolute paths. `envman target` prints the resolved data path. `envman init` creates the directory and installs shell loaders without adding a variable; saving a variable also installs or refreshes them.
+
+The private file key permits loading in desktop, SSH, and unattended sessions without a new prompt. It protects a copy of the encrypted data file alone. Copying the key with the data, or acting as the unlocked user or root, permits decryption. Keep the key and encrypted data in separate backup and access boundaries. A lost key without a recoverable encrypted export makes the managed file unreadable. The storage key is distinct from the encrypted-export credential below.
 
 ## Encrypted-backup key storage
 
@@ -28,9 +30,9 @@ Envman writes `${XDG_CONFIG_HOME:-$HOME/.config}/envman/load-env.sh` for POSIX s
 # <<< envman environment <<<
 ```
 
-The blocks are added to `$HOME/.profile`, an existing `.bash_profile` or `.bash_login` (the first one found), and `.bashrc`, `.zprofile`, and `.zshrc`. Envman appends a block only when that profile does not already contain its marker. Text, comments, and assignments outside the markers remain untouched. The generated loaders remain usable if the Envman application is later removed.
+The blocks are added to `$HOME/.profile`, an existing `.bash_profile` or `.bash_login` (the first one found), and `.bashrc`, `.zprofile`, and `.zshrc`. Envman appends a block only when that profile does not already contain its marker. Text, comments, and assignments outside the markers remain untouched. A private retained decryptor and copy of its crypto library keep the generated loaders usable if the Envman application is later removed. The Python interpreter used by the loader must remain available. Missing keys or damaged ciphertext prevent any managed assignments from loading; the loader reports an error without exposing values.
 
-The environment file keeps existing comments and managed assignment positions when possible, updates values in place, removes deleted assignments, and appends new names in sorted order. Envman creates timestamped mode-`0600` tar-gzip backups before replacing an existing managed file.
+The environment file keeps existing comments and managed assignment positions when possible, updates values in place, removes deleted assignments, and appends new names in sorted order. Envman creates timestamped private tar-gzip backups before replacing an existing managed file. New environment snapshots contain ciphertext. Existing plaintext snapshots from earlier versions remain sensitive until migrated. `envman check` reports their count; `envman migrate-storage` previews, and `envman migrate-storage --apply` encrypts the active file and historical environment snapshots. If a storage key exists alongside an active plaintext file, normal loading refuses it; use the explicit migration command to recover that interrupted state. Migration preserves profile snapshots and their contents.
 
 ## Validation and secret display
 

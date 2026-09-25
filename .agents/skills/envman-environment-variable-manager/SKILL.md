@@ -13,8 +13,10 @@ TUI for interactive inspection and editing.
 
 ## Safety invariants
 
-- Treat the managed configuration and process environment as sensitive. They are not
-  an encrypted secret store; protect their directories and permissions.
+- Treat the managed configuration and process environment as sensitive. New
+  saves encrypt the configuration with a separate private file key. A copy of
+  both the key and ciphertext, or an unlocked process environment, exposes values.
+  Protect their directories and permissions; check for legacy plaintext snapshots.
 - Keep sensitive values masked. Request `--reveal` only for a secure, intentional
   caller, and never paste values into logs, source control, or prompts.
 - Preview imports before applying. `--apply` is required to persist changes;
@@ -57,6 +59,7 @@ envman import --all --apply
 | `init` | Install shell loaders without adding a variable. |
 | `target` | Show the managed configuration file location. |
 | `check` | Validate the managed configuration. |
+| `migrate-storage` | Preview or encrypt historical plaintext environment snapshots. |
 | `update` | Check for or install a verified GitHub release update. |
 | `list` | List managed variables. |
 | `get` | Read one managed variable. |
