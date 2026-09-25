@@ -2,6 +2,24 @@
 
 All notable changes are documented here.
 
+## [0.1.9] - 2026-09-24
+
+### Added
+
+- Encrypt the managed environment file after its first save, with a separate private storage key and an explicit migration path for legacy plaintext snapshots.
+- Add a cohesive Envman identity across the terminal UI, README, documentation site, social preview, icons, and repository artwork.
+
+### Changed
+
+- Redesign the terminal catalog and import preview with a clearer hierarchy, responsive row counts, stronger focus and selection cues, concise controls, and a colorless fallback.
+- Rework the GitHub README and Pages site around task-focused installation, TUI, CLI, backup, storage, architecture, and testing routes.
+- Expand rendering and storage coverage for focused rows, empty states, constrained terminals, encryption boundaries, and migration behavior.
+
+### Fixed
+
+- Use the terminal's default foreground color when available so values remain readable on light and dark terminal backgrounds.
+- Align the CodeQL initialization and analysis actions to the same verified release.
+
 ## [0.1.8] - 2026-09-17
 
 ### Added

@@ -30,7 +30,7 @@ After a verified install, the installer creates `${XDG_STATE_HOME:-$HOME/.local/
 - provider (`github-release-wheel`) and repository;
 - manifest URL;
 - verified wheel and runtime-constraints asset metadata;
-- installer version (`0.1.8` for receipts created by this release's installer) and `uv` versions.
+- installer version (`0.1.9` for receipts created by this release's installer) and `uv` versions.
 
 `envman update` reads that receipt and supports only its recorded provider. It fetches the recorded manifest source, rejects a candidate that is older than the recorded version, and reports `current` without reinstalling an equal version. `--check` stops after reporting availability. An update downloads and verifies the new assets, prefetches the prior assets, and writes the new receipt only after the replacement succeeds.
 
