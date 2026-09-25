@@ -5,7 +5,7 @@ documents:
     category_label: Getting started
     category_slug: getting-started
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: how_to
     tags: [installation, uv, updates]
   - id: guide-tui
@@ -50,7 +50,7 @@ documents:
     category_label: Reference
     category_slug: reference
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: reference
     tags: [release, installer, updates]
   - id: development-architecture
@@ -77,7 +77,7 @@ documents:
     category_label: Development
     category_slug: development
     status: ACTIVE
-    last_updated: "2026-07-20"
+    last_updated: "2026-09-24"
     doc_type: reference
     tags: [versioning, releases]
   - id: governance-publishing

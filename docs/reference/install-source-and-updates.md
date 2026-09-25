@@ -5,7 +5,7 @@ title: Installation sources and updates
 
 # Installation sources and updates
 
-The public installer is a committed PEP 723 `uv --script` file generated from Envman's standard-library release protocol. It has no third-party runtime dependencies. The next skill-bearing public release will download `release-manifest-v2.json` from the latest GitHub release, then download only the assets named by that manifest. The legacy `release-manifest.json` remains wheel-and-constraints-only so immutable pre-skill installers can continue updating; the immutable v0.1.5 installer still uses that legacy manifest.
+The public installer is a committed PEP 723 `uv --script` file generated from Envman's standard-library release protocol. It has no third-party runtime dependencies. It downloads `release-manifest-v2.json` through GitHub's `releases/latest` route, then downloads only the immutable assets named by that manifest. The legacy `release-manifest.json` remains wheel-and-constraints-only so immutable pre-skill installers can continue updating; the immutable v0.1.5 installer still uses that legacy manifest.
 
 ## Trust boundary
 
@@ -20,6 +20,8 @@ The installer accepts a manifest only when all of these checks pass:
 7. After installation, the command path is resolved from `uv tool dir --bin` and that exact executable must report the manifest version. Verification never falls back to a different `envman` found through `PATH`.
 
 The installer trusts the local `uv` executable and selected Python runtime, GitHub release hosting and its controlled asset redirects, and PyPI over TLS for the exact packages in the verified constraints projection. It does not claim a hermetic dependency install. `--no-build` prevents source builds while installing the verified wheel.
+The optional skill installer uses the LocalSetup 5.6.2 agent catalog embedded in the release protocol. Its canonical write roots come from LocalSetup's generated platform projection, while supported native and historical roots are recognized for safe refresh. Repository and global boundaries reject traversal and symlink components. Existing unmarked skills are preserved rather than adopted.
+
 The installer does not silently generate or replace the encrypted-backup key. Key setup is deferred to first runtime or the explicit `envman key --generate --approve-key-generation` command, which requires approval; `--yes` and `--force` are not approval.
 
 ## Receipt-directed updates
@@ -32,7 +34,7 @@ After a verified install, the installer creates `${XDG_STATE_HOME:-$HOME/.local/
 - verified wheel and runtime-constraints asset metadata;
 - installer version (`0.1.9` for receipts created by this release's installer) and `uv` versions.
 
-`envman update` reads that receipt and supports only its recorded provider. It fetches the recorded manifest source, rejects a candidate that is older than the recorded version, and reports `current` without reinstalling an equal version. `--check` stops after reporting availability. An update downloads and verifies the new assets, prefetches the prior assets, and writes the new receipt only after the replacement succeeds.
+`envman update` reads that receipt and supports only its recorded provider. A standard public receipt points at GitHub's latest-release manifest. The updater fetches that source, rejects a candidate that is older than the recorded version, and reports `current` without reinstalling an equal tool version. `--check` stops after reporting availability. `--install-skill` can still install or refresh the equal release's verified skill for any supported scope and agent target. A tool update downloads and verifies the new assets, prefetches the prior assets, and writes the new receipt only after the replacement succeeds.
 
 ## Failure, rollback, and uninstall
 

@@ -15,6 +15,7 @@ The small scripts have separate boundaries:
 
 - `scripts/version.py` plans and checks the patch-default Conventional Commit release policy.
 - `scripts/render_installer.py` renders `install.py` from `_release_protocol.py`.
+- `scripts/sync_localsetup_skill_targets.py` renders the installer and updater's agent target catalog from the pinned latest stable LocalSetup source.
 - `scripts/release_assets.py` creates the pinned runtime-constraints projection, release manifest, and SHA-256 list.
 - `scripts/check_docs.py` checks that every machine-index path exists and is linked by `docs/INDEX.md`.
 
@@ -40,6 +41,8 @@ The generated installer and the `update` command share `_release_protocol.py`. T
 
 Installation uses `uv tool install --no-build` and writes a private receipt at `${XDG_STATE_HOME:-$HOME/.local/state}/envman/install.json`. The receipt records the installed version, provider, manifest URL, asset metadata, installer version, `uv` version, and timestamp. Replacing an existing Envman tool requires a valid Envman receipt; updates use the recorded provider and refuse a downgrade. A failed replacement attempts to restore the previous wheel and receipt.
 
+The optional agent skill uses scope and target selection from the LocalSetup compatibility catalog. Envman pins that catalog to the latest stable LocalSetup release at release time. LocalSetup's canonical write paths determine new roots; active client skill surfaces and historical transitions determine which existing roots can be refreshed. The public installer and installed updater share the same resolver, containment checks, unmarked-file protection, atomic writes, and rollback behavior.
+
 ## Deterministic release assets
 
 `install.py` must be rendered from the canonical protocol and committed without a diff:
@@ -47,6 +50,13 @@ Installation uses `uv tool install --no-build` and writes a private receipt at `
 ```bash
 uv run --locked --no-sync python scripts/render_installer.py
 git diff --exit-code -- install.py
+```
+
+The LocalSetup compatibility pin must also match its source projection and GitHub's latest stable release:
+
+```bash
+uv run --locked --no-sync python scripts/sync_localsetup_skill_targets.py \
+  --github-latest --check --verify-latest
 ```
 
 The tag-gated GitHub release workflow sets `SOURCE_DATE_EPOCH` to the tagged commit timestamp, builds twice with `uv build --no-build-isolation`, and compares the wheel and source archive byte-for-byte. `scripts/release_assets.py` then writes exact runtime pins from `uv.lock`, legacy and v2 release manifests, the version-locked agent skill, and `SHA256SUMS.txt`. The publish job creates a draft release from the matching changelog section, attests every release asset, and makes the release public only after those steps succeed.

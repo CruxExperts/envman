@@ -52,10 +52,120 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UV_VERSION = re.compile(r"\buv\s+(\d+)\.(\d+)\.(\d+)\b", re.IGNORECASE)
 DIST_INFO_NAME = re.compile(r"^envman-[^-]+\.dist-info/METADATA$")
 SKILL_VERSION_MARKER = re.compile(r"(?m)^<!--\s*envman-skill-lock:\s*version=(?P<version>\d+\.\d+\.\d+)\s+source=src/envman/cli\.py\s*-->\s*$")
-SUPPORTED_SKILL_ROOTS = (".agents/skills", ".codex/skills", ".claude/skills", ".cursor/skills", ".gemini/skills", ".opencode/skills")
+# BEGIN GENERATED LOCALSETUP SKILL TARGETS
+LOCALSETUP_COMPATIBILITY_VERSION = "5.6.2"
+LOCALSETUP_COMPATIBILITY_SOURCE = "https://github.com/CruxExperts/localsetup/tree/v5.6.2"
+LOCALSETUP_CLIENTS_SHA256 = "7ff5ac026dab938d2976ecf306c35e4befc7ce8ed4bd1de10fe4dce99c41ed45"
+LOCALSETUP_PLATFORMS_SHA256 = "3e3de44c53d649e2acb35732b02e2b400dbeb45b8f81bcd1c95469fe6d89d9c2"
+LOCALSETUP_SKILL_TARGETS = {'amp-cli': {'global_discover': ('~/.agents/skills',),
+             'global_write': ('~/.agents/skills',),
+             'repository_discover': ('.agents/skills',),
+             'repository_write': ('.agents/skills',)},
+ 'antigravity-app': {'global_discover': ('~/.gemini/config/skills',),
+                     'global_write': ('~/.gemini/config/skills',),
+                     'repository_discover': ('.agents/skills',),
+                     'repository_write': ('.agents/skills',)},
+ 'claude-code': {'global_discover': ('~/.claude/skills',),
+                 'global_write': ('~/.claude/skills',),
+                 'repository_discover': ('.claude/skills',),
+                 'repository_write': ('.claude/skills',)},
+ 'cline-cli': {'global_discover': ('~/.cline/skills',),
+               'global_write': ('~/.cline/skills',),
+               'repository_discover': ('.cline/skills',),
+               'repository_write': ('.cline/skills',)},
+ 'cline-vscode': {'global_discover': ('~/.cline/skills',),
+                  'global_write': ('~/.cline/skills',),
+                  'repository_discover': ('.cline/skills',),
+                  'repository_write': ('.cline/skills',)},
+ 'codex': {'global_discover': ('~/.agents/skills',),
+           'global_write': ('~/.agents/skills',),
+           'repository_discover': ('.agents/skills', '.codex/skills'),
+           'repository_write': ('.agents/skills',)},
+ 'cursor': {'global_discover': ('~/.agents/skills',
+                                '~/.cursor/skills',
+                                '~/.claude/skills',
+                                '~/.codex/skills'),
+            'global_write': ('~/.agents/skills',),
+            'repository_discover': ('.agents/skills', '.cursor/skills', '.claude/skills', '.codex/skills'),
+            'repository_write': ('.agents/skills',)},
+ 'factory-droid': {'global_discover': ('~/.agents/skills',),
+                   'global_write': ('~/.agents/skills',),
+                   'repository_discover': ('.agents/skills',),
+                   'repository_write': ('.agents/skills',)},
+ 'gemini-cli': {'global_discover': ('~/.agents/skills', '~/.gemini/skills'),
+                'global_write': ('~/.agents/skills',),
+                'repository_discover': ('.agents/skills', '.gemini/skills'),
+                'repository_write': ('.agents/skills',)},
+ 'github-copilot-cli': {'global_discover': ('~/.agents/skills',),
+                        'global_write': ('~/.agents/skills',),
+                        'repository_discover': ('.agents/skills',),
+                        'repository_write': ('.agents/skills',)},
+ 'github-copilot-vscode': {'global_discover': ('~/.agents/skills',),
+                           'global_write': ('~/.agents/skills',),
+                           'repository_discover': ('.agents/skills',),
+                           'repository_write': ('.agents/skills',)},
+ 'goose-cli': {'global_discover': ('~/.agents/skills',),
+               'global_write': ('~/.agents/skills',),
+               'repository_discover': ('.agents/skills',),
+               'repository_write': ('.agents/skills',)},
+ 'hermes-agent': {'global_discover': ('~/.hermes/skills',),
+                  'global_write': ('~/.hermes/skills',),
+                  'repository_discover': ('.hermes/skills',),
+                  'repository_write': ('.hermes/skills',)},
+ 'kilo': {'global_discover': ('~/.agents/skills',
+                              '~/.kilo/skills',
+                              '~/.kilo/skill',
+                              '~/.kilocode/skills',
+                              '~/.kilocode/skill',
+                              '~/.config/kilo/skills',
+                              '~/.config/kilo/skill',
+                              '~/.claude/skills'),
+          'global_write': ('~/.agents/skills',),
+          'repository_discover': ('.agents/skills',
+                                  '.kilo/skills',
+                                  '.kilo/skill',
+                                  '.kilocode/skills',
+                                  '.kilocode/skill',
+                                  '.claude/skills'),
+          'repository_write': ('.agents/skills',)},
+ 'kimi-cli': {'global_discover': ('~/.agents/skills',),
+              'global_write': ('~/.agents/skills',),
+              'repository_discover': ('.agents/skills',),
+              'repository_write': ('.agents/skills',)},
+ 'omp-cli': {'global_discover': ('~/.agents/skills', '~/.agent/skills', '~/.omp/agent/skills'),
+             'global_write': ('~/.agents/skills',),
+             'repository_discover': ('.agents/skills', '.agent/skills', '.omp/skills'),
+             'repository_write': ('.agents/skills',)},
+ 'openclaw': {'global_discover': ('~/.agents/skills', '~/.openclaw/skills'),
+              'global_write': ('~/.agents/skills',),
+              'repository_discover': ('.agents/skills', 'skills', '.openclaw/skills'),
+              'repository_write': ('.agents/skills',)},
+ 'opencode': {'global_discover': ('~/.agents/skills',
+                                  '~/.opencode/skill',
+                                  '~/.opencode/skills',
+                                  '~/.config/opencode/skill',
+                                  '~/.config/opencode/skills',
+                                  '~/.claude/skills'),
+              'global_write': ('~/.agents/skills',),
+              'repository_discover': ('.agents/skills',
+                                      '.opencode/skill',
+                                      '.opencode/skills',
+                                      '.claude/skills'),
+              'repository_write': ('.agents/skills',)},
+ 'pi-cli': {'global_discover': ('~/.agents/skills',),
+            'global_write': ('~/.agents/skills',),
+            'repository_discover': ('.agents/skills',),
+            'repository_write': ('.agents/skills',)},
+ 'qwen-code-cli': {'global_discover': ('~/.agents/skills',),
+                   'global_write': ('~/.agents/skills',),
+                   'repository_discover': ('.agents/skills',),
+                   'repository_write': ('.agents/skills',)}}
+# END GENERATED LOCALSETUP SKILL TARGETS
 SKILL_ASSET_FILENAME = "envman-environment-variable-manager-skill.md"
 SKILL_DIRECTORY_NAME = "envman-environment-variable-manager"
 SKILL_FILENAME = "SKILL.md"
+SKILL_SCOPE_CHOICES = ("auto", "repository", "global")
+SKILL_TARGET_CHOICES = ("auto", "all", *sorted(LOCALSETUP_SKILL_TARGETS))
 
 
 class ReleaseProtocolError(RuntimeError):
@@ -93,6 +203,14 @@ class InstallReceipt:
     installer_version: str
     uv_version: str
     installed_at: str
+
+
+@dataclass(frozen=True)
+class SkillInstallPlan:
+    scope: str
+    targets: tuple[str, ...]
+    boundary: Path
+    roots: tuple[Path, ...]
 
 
 Transport = Callable[[str, int], bytes]
@@ -269,26 +387,34 @@ def validate_skill(raw: bytes, version: str) -> str:
     return text
 
 
-def discover_repo_root(cwd: Path | None = None) -> Path:
-    """Find the nearest repository root, or use cwd when no .git exists."""
+def find_repo_root(cwd: Path | None = None) -> Path | None:
+    """Return the nearest real Git repository root, if one exists."""
     candidate = Path(cwd or Path.cwd()).expanduser()
     if not candidate.is_absolute():
         candidate = Path.cwd() / candidate
     candidate = Path(os.path.abspath(candidate))
     if not candidate.is_dir() or candidate.is_symlink():
-        raise ReleaseProtocolError("Selected repository root must be a real directory.")
+        raise ReleaseProtocolError("Skill search root must be a real directory.")
     for parent in (candidate, *candidate.parents):
         git_marker = parent / ".git"
         if git_marker.exists() or git_marker.is_symlink():
             return parent
-    return candidate
+    return None
+
+
+def discover_repo_root(cwd: Path | None = None) -> Path:
+    """Find the nearest repository root and reject an unscoped directory."""
+    root = find_repo_root(cwd)
+    if root is None:
+        raise ReleaseProtocolError("Repository skill scope requires a directory inside a Git repository.")
+    return root
 
 
 def _assert_contained(root: Path, path: Path, label: str) -> None:
     try:
         path.resolve(strict=False).relative_to(root.resolve(strict=True))
     except (OSError, ValueError) as exc:
-        raise ReleaseProtocolError(f"{label} escapes the selected repository root.") from exc
+        raise ReleaseProtocolError(f"{label} escapes the selected installation boundary.") from exc
 
 
 def _reject_symlink_components(root: Path, path: Path, label: str) -> None:
@@ -301,34 +427,116 @@ def _reject_symlink_components(root: Path, path: Path, label: str) -> None:
             raise ReleaseProtocolError(f"{label} contains an unsafe symlink.")
 
 
-def _candidate_skill_roots(root: Path) -> list[Path]:
-    found: list[Path] = []
-    for relative in SUPPORTED_SKILL_ROOTS:
-        candidate = root / relative
-        if candidate.exists() or candidate.is_symlink():
-            _reject_symlink_components(root, candidate, "Skill root")
-            if not candidate.is_dir():
-                raise ReleaseProtocolError(f"Skill root is not a directory: {candidate}")
-            found.append(candidate)
-    if not found:
-        found.append(root / ".agents" / "skills")
-    return found
+def _global_home(home: Path | None = None) -> Path:
+    candidate = Path(home or Path.home()).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    candidate = Path(os.path.abspath(candidate))
+    if not candidate.is_dir() or candidate.is_symlink():
+        raise ReleaseProtocolError("Global skill scope requires a real home directory.")
+    return candidate
 
 
-def skill_install_targets(repo_root: Path | None = None) -> list[Path]:
-    """Return all supported existing roots, creating .agents/skills if needed."""
-    root = discover_repo_root(repo_root)
-    found = _candidate_skill_roots(root)
-    if len(found) == 1 and not found[0].exists():
-        candidate = found[0]
-        _reject_symlink_components(root, candidate, "Skill root")
+def _skill_relative_path(value: str, scope: str) -> Path:
+    if scope == "global":
+        if not value.startswith("~/"):
+            raise ReleaseProtocolError("Global LocalSetup skill path is invalid.")
+        value = value[2:]
+    elif value.startswith("~/"):
+        raise ReleaseProtocolError("Repository LocalSetup skill path is invalid.")
+    path = Path(value)
+    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
+        raise ReleaseProtocolError("LocalSetup skill path is unsafe.")
+    return path
+
+
+def _selected_skill_targets(targets: Sequence[str] | None) -> tuple[str, tuple[str, ...]]:
+    requested = tuple(targets or ("auto",))
+    if len(requested) != len(set(requested)):
+        raise ReleaseProtocolError("Skill targets must not be repeated.")
+    unknown = sorted(set(requested) - set(SKILL_TARGET_CHOICES))
+    if unknown:
+        raise ReleaseProtocolError(f"Unsupported skill target: {', '.join(unknown)}")
+    if len(requested) > 1 and ({"auto", "all"} & set(requested)):
+        raise ReleaseProtocolError("Skill target auto or all must be used alone.")
+    mode = requested[0] if requested in (("auto",), ("all",)) else "selected"
+    selected = tuple(sorted(LOCALSETUP_SKILL_TARGETS)) if mode in {"auto", "all"} else requested
+    return mode, selected
+
+
+def skill_install_plan(
+    *,
+    skill_scope: str = "auto",
+    skill_targets: Sequence[str] | None = None,
+    repo_root: Path | None = None,
+    home: Path | None = None,
+) -> SkillInstallPlan:
+    """Resolve LocalSetup-compatible skill destinations without changing them."""
+    if skill_scope not in SKILL_SCOPE_CHOICES:
+        raise ReleaseProtocolError(f"Unsupported skill scope: {skill_scope}")
+    repository = find_repo_root(repo_root)
+    resolved_scope = skill_scope
+    if resolved_scope == "auto":
+        resolved_scope = "repository" if repository is not None else "global"
+    if resolved_scope == "repository":
+        if repository is None:
+            raise ReleaseProtocolError("Repository skill scope requires a directory inside a Git repository.")
+        boundary = repository
+    else:
+        boundary = _global_home(home)
+
+    mode, selected = _selected_skill_targets(skill_targets)
+    discover_key = f"{resolved_scope}_discover"
+    write_key = f"{resolved_scope}_write"
+    canonical_targets = ("codex",) if mode == "auto" else selected
+    canonical: list[Path] = []
+    discovered: list[Path] = []
+    for target in canonical_targets:
+        record = LOCALSETUP_SKILL_TARGETS[target]
+        for value in record[write_key]:
+            canonical.append(boundary / _skill_relative_path(value, resolved_scope))
+    for target in selected:
+        record = LOCALSETUP_SKILL_TARGETS[target]
+        for value in record[discover_key]:
+            candidate = boundary / _skill_relative_path(value, resolved_scope)
+            if candidate.exists() or candidate.is_symlink():
+                discovered.append(candidate)
+
+    roots = tuple(dict.fromkeys((*canonical, *discovered)))
+    for candidate in roots:
+        _reject_symlink_components(boundary, candidate, "Skill root")
+        if candidate.exists() and not candidate.is_dir():
+            raise ReleaseProtocolError(f"Skill root is not a directory: {candidate}")
+    return SkillInstallPlan(resolved_scope, selected, boundary, roots)
+
+
+def _create_skill_roots(plan: SkillInstallPlan) -> None:
+    for candidate in plan.roots:
+        _reject_symlink_components(plan.boundary, candidate, "Skill root")
         try:
             candidate.mkdir(mode=0o755, parents=True, exist_ok=True)
         except OSError as exc:
             raise ReleaseProtocolError(f"Skill root is not a directory: {candidate}") from exc
         if candidate.is_symlink() or not candidate.is_dir():
             raise ReleaseProtocolError(f"Skill root is unsafe: {candidate}")
-    return found
+
+
+def skill_install_targets(
+    repo_root: Path | None = None,
+    *,
+    skill_scope: str = "auto",
+    skill_targets: Sequence[str] | None = None,
+    home: Path | None = None,
+) -> list[Path]:
+    """Create and return LocalSetup-compatible skill roots for one scope."""
+    plan = skill_install_plan(
+        skill_scope=skill_scope,
+        skill_targets=skill_targets,
+        repo_root=repo_root,
+        home=home,
+    )
+    _create_skill_roots(plan)
+    return list(plan.roots)
 
 
 def _validated_skill_destinations(root: Path, roots: Sequence[Path]) -> list[Path]:
@@ -391,22 +599,30 @@ def install_skill_asset(
     version: str,
     *,
     repo_root: Path | None = None,
+    home: Path | None = None,
+    skill_scope: str = "auto",
+    skill_targets: Sequence[str] | None = None,
+    plan: SkillInstallPlan | None = None,
     snapshot: Mapping[Path, tuple[str, bytes | None, int | None]] | None = None,
 ) -> list[Path]:
-    """Install one verified skill asset into every safe supported repo-local root."""
+    """Install one verified skill into safe LocalSetup-compatible destinations."""
     validate_skill(raw, version)
-    root = discover_repo_root(repo_root)
-    roots = _candidate_skill_roots(root)
-    destinations = _validated_skill_destinations(root, roots)
-    prior = snapshot or _skill_snapshot(root, destinations)
-    skill_install_targets(root)
+    selected_plan = plan or skill_install_plan(
+        skill_scope=skill_scope,
+        skill_targets=skill_targets,
+        repo_root=repo_root,
+        home=home,
+    )
+    destinations = _validated_skill_destinations(selected_plan.boundary, selected_plan.roots)
+    prior = snapshot or _skill_snapshot(selected_plan.boundary, destinations)
     try:
+        _create_skill_roots(selected_plan)
         for destination in destinations:
             try:
                 destination.parent.mkdir(mode=0o755, parents=False, exist_ok=True)
             except OSError as exc:
                 raise ReleaseProtocolError(f"Skill destination is not a directory: {destination.parent}") from exc
-            _reject_symlink_components(root, destination.parent, "Skill destination")
+            _reject_symlink_components(selected_plan.boundary, destination.parent, "Skill destination")
             _atomic_skill_write(destination, raw)
     except Exception as install_error:
         try:
@@ -641,7 +857,20 @@ def _receipt(manifest: ReleaseManifest, uv_version: str, now: Callable[[], datet
     return InstallReceipt(manifest.version, "github-release-wheel", REPOSITORY, manifest.manifest_url, manifest.wheel, manifest.constraints, INSTALLER_VERSION, uv_version, now().astimezone(UTC).isoformat().replace("+00:00", "Z"))
 
 
-def install_manifest(manifest: ReleaseManifest, *, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", now: Callable[[], datetime] = lambda: datetime.now(UTC), install_skill: bool = False, repo_root: Path | None = None) -> InstallReceipt:
+def install_manifest(
+    manifest: ReleaseManifest,
+    *,
+    transport: Transport = default_transport,
+    runner: Runner = default_runner,
+    state_root: Path | None = None,
+    uv_executable: str = "uv",
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    install_skill: bool = False,
+    skill_scope: str = "auto",
+    skill_targets: Sequence[str] | None = None,
+    repo_root: Path | None = None,
+    home: Path | None = None,
+) -> InstallReceipt:
     """Install one verified manifest, refusing to replace an unowned Envman tool."""
     if install_skill and manifest.skill is None:
         raise ReleaseProtocolError("This release does not contain an Envman agent skill asset.")
@@ -658,13 +887,20 @@ def install_manifest(manifest: ReleaseManifest, *, transport: Transport = defaul
     validate_wheel(wheel, manifest.version)
     validate_constraints(constraints)
     skill: bytes | None = None
+    skill_plan: SkillInstallPlan | None = None
     skill_snapshot: Mapping[Path, tuple[str, bytes | None, int | None]] | None = None
     if install_skill:
         assert manifest.skill is not None
         skill = download_asset(manifest.skill, transport=transport, maximum_size=SKILL_LIMIT)
         validate_skill(skill, manifest.version)
-        skill_root = discover_repo_root(repo_root)
-        skill_snapshot = _skill_snapshot(skill_root, _validated_skill_destinations(skill_root, _candidate_skill_roots(skill_root)))
+        skill_plan = skill_install_plan(
+            skill_scope=skill_scope,
+            skill_targets=skill_targets,
+            repo_root=repo_root,
+            home=home,
+        )
+        destinations = _validated_skill_destinations(skill_plan.boundary, skill_plan.roots)
+        skill_snapshot = _skill_snapshot(skill_plan.boundary, destinations)
     root = Path(tempfile.mkdtemp(prefix="envman-release-"))
     try:
         wheel_path = _write_artifact(root, manifest.wheel.filename, wheel)
@@ -681,7 +917,13 @@ def install_manifest(manifest: ReleaseManifest, *, transport: Transport = defaul
             _verify_distribution_metadata(manifest.version, runner=runner, uv_executable=uv_executable)
             _verify_command(manifest.version, runner=runner, uv_executable=uv_executable)
             if skill is not None:
-                install_skill_asset(skill, manifest.version, repo_root=repo_root, snapshot=skill_snapshot)
+                assert skill_plan is not None
+                install_skill_asset(
+                    skill,
+                    manifest.version,
+                    plan=skill_plan,
+                    snapshot=skill_snapshot,
+                )
             result = _receipt(manifest, uv_version, now)
             write_receipt(result, receipt_file)
             return result
@@ -716,7 +958,46 @@ def load_manifest(url: str = LATEST_MANIFEST_URL, *, transport: Transport = defa
     return parse_manifest(transport(url, MANIFEST_LIMIT), manifest_url=url)
 
 
-def update(*, check_only: bool, transport: Transport = default_transport, runner: Runner = default_runner, state_root: Path | None = None, uv_executable: str = "uv", now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> dict[str, object]:
+def install_manifest_skill(
+    manifest: ReleaseManifest,
+    *,
+    transport: Transport = default_transport,
+    skill_scope: str = "auto",
+    skill_targets: Sequence[str] | None = None,
+    repo_root: Path | None = None,
+    home: Path | None = None,
+) -> list[Path]:
+    """Install only the verified skill from an already selected release."""
+    if manifest.skill is None:
+        raise ReleaseProtocolError("This release does not contain an Envman agent skill asset.")
+    skill = download_asset(manifest.skill, transport=transport, maximum_size=SKILL_LIMIT)
+    validate_skill(skill, manifest.version)
+    return install_skill_asset(
+        skill,
+        manifest.version,
+        skill_scope=skill_scope,
+        skill_targets=skill_targets,
+        repo_root=repo_root,
+        home=home,
+    )
+
+
+def update(
+    *,
+    check_only: bool,
+    transport: Transport = default_transport,
+    runner: Runner = default_runner,
+    state_root: Path | None = None,
+    uv_executable: str = "uv",
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    install_skill: bool = False,
+    skill_scope: str = "auto",
+    skill_targets: Sequence[str] | None = None,
+    repo_root: Path | None = None,
+    home: Path | None = None,
+) -> dict[str, object]:
+    if check_only and install_skill:
+        raise ReleaseProtocolError("--check cannot be combined with agent skill installation.")
     receipt = read_receipt(receipt_path(state_root))
     if receipt.provider != "github-release-wheel":
         raise ReleaseProtocolError("Install receipt provider is not supported for updates.")
@@ -726,42 +1007,107 @@ def update(*, check_only: bool, transport: Transport = default_transport, runner
     if candidate < current:
         raise ReleaseProtocolError("Refusing a downgrade from the recorded installation.")
     if candidate == current:
+        if install_skill:
+            destinations = install_manifest_skill(
+                manifest,
+                transport=transport,
+                skill_scope=skill_scope,
+                skill_targets=skill_targets,
+                repo_root=repo_root,
+                home=home,
+            )
+            return {
+                "schema": "envman.update-result",
+                "schema_version": 1,
+                "status": "skill-installed",
+                "installed_version": receipt.installed_version,
+                "available_version": manifest.version,
+                "skill_destinations": [str(path) for path in destinations],
+                "localsetup_compatibility_version": LOCALSETUP_COMPATIBILITY_VERSION,
+            }
         return {"schema": "envman.update-result", "schema_version": 1, "status": "current", "installed_version": receipt.installed_version, "available_version": manifest.version}
     if check_only:
         return {"schema": "envman.update-result", "schema_version": 1, "status": "update-available", "installed_version": receipt.installed_version, "available_version": manifest.version}
-    installed = install_manifest(manifest, transport=transport, runner=runner, state_root=state_root, uv_executable=uv_executable, now=now)
+    installed = install_manifest(
+        manifest,
+        transport=transport,
+        runner=runner,
+        state_root=state_root,
+        uv_executable=uv_executable,
+        now=now,
+        install_skill=install_skill,
+        skill_scope=skill_scope,
+        skill_targets=skill_targets,
+        repo_root=repo_root,
+        home=home,
+    )
     return {"schema": "envman.update-result", "schema_version": 1, "status": "updated", "installed_version": receipt.installed_version, "available_version": installed.installed_version}
 
 
 def installer_main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Install a verified Envman GitHub release into uv tools.")
-    parser.add_argument("--manifest-url", default=LATEST_MANIFEST_URL)
+    parser = argparse.ArgumentParser(description="Install the latest verified Envman GitHub release into uv tools.")
+    parser.add_argument("--manifest-url", default=LATEST_MANIFEST_URL, help=argparse.SUPPRESS)
     skill_group = parser.add_mutually_exclusive_group()
-    skill_group.add_argument("--install-skill", action="store_true", dest="install_skill")
-    skill_group.add_argument("--no-install-skill", action="store_false", dest="install_skill")
+    skill_group.add_argument("--install-skill", action="store_true", dest="install_skill", help="Install the verified Envman agent skill.")
+    skill_group.add_argument("--no-install-skill", action="store_false", dest="install_skill", help="Skip agent skill installation.")
+    parser.add_argument(
+        "--skill-scope",
+        choices=SKILL_SCOPE_CHOICES,
+        help="Install the skill in auto-detected, repository, or global scope.",
+    )
+    parser.add_argument(
+        "--skill-target",
+        action="append",
+        choices=SKILL_TARGET_CHOICES,
+        default=[],
+        metavar="AGENT",
+        help="Target a LocalSetup-supported agent; repeat for more than one or use all.",
+    )
     parser.set_defaults(install_skill=None)
     arguments = parser.parse_args(argv)
     try:
         manifest = load_manifest(arguments.manifest_url)
         install_skill = arguments.install_skill
+        explicit_skill_options = arguments.skill_scope is not None or bool(arguments.skill_target)
+        if install_skill is False and explicit_skill_options:
+            raise ReleaseProtocolError("--no-install-skill cannot be combined with skill scope or target options.")
+        if install_skill is None and explicit_skill_options:
+            install_skill = True
         if install_skill is None:
             if manifest.skill is None:
                 install_skill = False
             elif sys.stdin.isatty() and sys.stdout.isatty():
                 try:
-                    answer = input("Install the Envman agent skill into this repository? [Y/n] ").strip().lower()
+                    answer = input("Install the Envman agent skill using LocalSetup-compatible placement? [Y/n] ").strip().lower()
                 except (EOFError, OSError):
                     answer = "n"
                 install_skill = answer not in {"n", "no"}
             else:
                 install_skill = False
-        receipt = install_manifest(manifest, install_skill=install_skill, repo_root=Path.cwd())
+        skill_scope = arguments.skill_scope or "auto"
+        skill_targets = tuple(arguments.skill_target or ("auto",))
+        receipt = install_manifest(
+            manifest,
+            install_skill=install_skill,
+            skill_scope=skill_scope,
+            skill_targets=skill_targets,
+            repo_root=Path.cwd(),
+            home=Path.home(),
+        )
     except ReleaseProtocolError as exc:
         print(f"envman installer: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps({"schema": "envman.install-result", "schema_version": 1, "status": "installed", "version": receipt.installed_version}, sort_keys=True))
+    result: dict[str, object] = {
+        "schema": "envman.install-result",
+        "schema_version": 1,
+        "status": "installed",
+        "version": receipt.installed_version,
+        "localsetup_compatibility_version": LOCALSETUP_COMPATIBILITY_VERSION,
+    }
+    if install_skill:
+        result.update({"skill_scope": skill_scope, "skill_targets": list(skill_targets)})
+    print(json.dumps(result, sort_keys=True))
     return 0
-
 
 
 if __name__ == "__main__":

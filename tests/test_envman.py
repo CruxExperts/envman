@@ -1928,6 +1928,46 @@ class EnvmanCliTests(IsolatedEnvmanTestCase):
         self.assertEqual(context.exception.code, 0)
         self.assertEqual(output.getvalue().strip(), f"envman {envman.app_version()}")
 
+    def test_update_cli_passes_localsetup_skill_scope_and_targets(self) -> None:
+        parsed = envman.build_cli_parser().parse_args(
+            [
+                "update",
+                "--install-skill",
+                "--skill-scope",
+                "global",
+                "--skill-target",
+                "codex",
+                "--skill-target",
+                "opencode",
+                "--json",
+            ]
+        )
+        result = {
+            "schema": "envman.update-result",
+            "schema_version": 1,
+            "status": "skill-installed",
+            "installed_version": "0.1.0",
+            "available_version": "0.1.0",
+            "skill_destinations": ["/tmp/home/.agents/skills/envman-environment-variable-manager/SKILL.md"],
+        }
+        output = io.StringIO()
+        with (
+            mock.patch.object(envman, "update_release", return_value=result) as update_release,
+            mock.patch.object(envman.Path, "home", return_value=Path("/tmp/home")),
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(envman.run_update_cli(parsed), envman.EXIT_SUCCESS)
+
+        self.assertEqual(json.loads(output.getvalue())["status"], "skill-installed")
+        self.assertEqual(update_release.call_args.kwargs["skill_scope"], "global")
+        self.assertEqual(update_release.call_args.kwargs["skill_targets"], ("codex", "opencode"))
+        self.assertTrue(update_release.call_args.kwargs["install_skill"])
+
+    def test_update_check_rejects_skill_installation_options(self) -> None:
+        parsed = envman.build_cli_parser().parse_args(["update", "--check", "--skill-target", "codex"])
+        with self.assertRaisesRegex(envman.CommandError, "--check"):
+            envman.run_update_cli(parsed)
+
 
     def test_cli_copies_validated_values_without_exposing_secrets(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

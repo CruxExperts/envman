@@ -42,7 +42,12 @@ from ._secure_store import (
     load_or_create_file_key,
     safe_read,
 )
-from ._release_protocol import ReleaseProtocolError, update as update_release
+from ._release_protocol import (
+    SKILL_SCOPE_CHOICES,
+    SKILL_TARGET_CHOICES,
+    ReleaseProtocolError,
+    update as update_release,
+)
 
 APP_NAME = "envman"
 MARKER_START = "# >>> envman environment >>>"
@@ -2639,6 +2644,24 @@ def build_cli_parser() -> argparse.ArgumentParser:
     )
     update_parser = command("update", help="Check for or install a verified GitHub release update.")
     update_parser.add_argument("--check", action="store_true", help="Report whether an update is available without installing it.")
+    update_parser.add_argument(
+        "--install-skill",
+        action="store_true",
+        help="Install or refresh the verified skill from the latest release.",
+    )
+    update_parser.add_argument(
+        "--skill-scope",
+        choices=SKILL_SCOPE_CHOICES,
+        help="Install the skill in auto-detected, repository, or global scope.",
+    )
+    update_parser.add_argument(
+        "--skill-target",
+        action="append",
+        choices=SKILL_TARGET_CHOICES,
+        default=[],
+        metavar="AGENT",
+        help="Target a LocalSetup-supported agent; repeat for more than one or use all.",
+    )
 
     list_parser = command("list", help="List managed variables.")
     list_parser.add_argument(
@@ -2992,8 +3015,18 @@ def run_cli_import(
     return EXIT_SUCCESS
 
 def run_update_cli(arguments: argparse.Namespace) -> int:
+    install_skill = bool(arguments.install_skill or arguments.skill_scope or arguments.skill_target)
+    if arguments.check and install_skill:
+        raise CommandError("--check cannot be combined with agent skill installation.")
     try:
-        result = update_release(check_only=arguments.check)
+        result = update_release(
+            check_only=arguments.check,
+            install_skill=install_skill,
+            skill_scope=arguments.skill_scope or "auto",
+            skill_targets=tuple(arguments.skill_target or ("auto",)),
+            repo_root=Path.cwd(),
+            home=Path.home(),
+        )
     except ReleaseProtocolError as exc:
         message = str(exc)
         exit_code = EXIT_FAILURE if message.startswith(("Could not", "Installation failed", "Update failed", "Installed")) else EXIT_INVALID
@@ -3003,6 +3036,8 @@ def run_update_cli(arguments: argparse.Namespace) -> int:
         text = f"Envman {result['installed_version']} is current."
     elif status == "update-available":
         text = f"Envman {result['available_version']} is available (installed: {result['installed_version']})."
+    elif status == "skill-installed":
+        text = f"Installed the Envman {result['available_version']} agent skill."
     else:
         text = f"Updated Envman from {result['installed_version']} to {result['available_version']}."
     emit_cli(result, arguments.json, text)

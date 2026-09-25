@@ -4,7 +4,7 @@
 
 ## Getting started
 
-- [Install Envman](getting-started/installation.md) - ACTIVE `how_to`; tags: `installation`, `uv`, `updates`; updated 2026-07-20.
+- [Install Envman](getting-started/installation.md) - ACTIVE `how_to`; tags: `installation`, `uv`, `updates`; updated 2026-09-24.
 
 ## Guides
 
@@ -15,13 +15,13 @@
 ## Reference
 
 - [Storage and shell loading](reference/storage-and-shell-loading.md) - ACTIVE `reference`; tags: `storage`, `shells`; updated 2026-09-24.
-- [Installation sources and updates](reference/install-source-and-updates.md) - ACTIVE `reference`; tags: `release`, `installer`, `updates`; updated 2026-07-20.
+- [Installation sources and updates](reference/install-source-and-updates.md) - ACTIVE `reference`; tags: `release`, `installer`, `updates`; updated 2026-09-24.
 
 ## Development
 
 - [Architecture](development/architecture.md) - ACTIVE `reference`; tags: `architecture`, `package`; updated 2026-09-24.
 - [Testing](development/testing.md) - ACTIVE `how_to`; tags: `testing`, `unittest`; updated 2026-07-20.
-- [Versioning and releases](development/versioning-and-releases.md) - ACTIVE `reference`; tags: `versioning`, `releases`; updated 2026-07-20.
+- [Versioning and releases](development/versioning-and-releases.md) - ACTIVE `reference`; tags: `versioning`, `releases`; updated 2026-09-24.
 
 ## Governance
 

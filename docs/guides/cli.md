@@ -70,9 +70,11 @@ envman import-backup ./envman-backup.json --all --apply
 envman update --check
 envman update --check --json
 envman update
+envman update --install-skill --skill-scope global --skill-target codex
+envman update --install-skill --skill-scope repository --skill-target opencode
 ```
 
-`update --check` reports whether a newer verified GitHub release is available without installing it. `update` uses only the provider recorded in the private install receipt and verifies the manifest and release assets before replacing the tool. A missing, malformed, symlinked, or untrusted receipt is an error; Envman does not silently choose another update source. See [installation sources and updates](../reference/install-source-and-updates.md).
+`update --check` reports whether a newer verified GitHub release is available without installing it. `update` uses only the provider recorded in the private install receipt and verifies the manifest and release assets before replacing the tool. `--install-skill` installs or refreshes the latest release's version-locked skill; it works when Envman is already current. Choose `auto`, `repository`, or `global` with `--skill-scope`; repeat `--skill-target AGENT` or use `all` for LocalSetup-supported agent placement. Scope and target options imply skill installation, and `--check` cannot be combined with them. A missing, malformed, symlinked, or untrusted receipt is an error; Envman does not silently choose another update source. See [installation sources and updates](../reference/install-source-and-updates.md).
 
 ## Copy and rename boundaries
 

@@ -126,7 +126,7 @@ class ReleaseProtocolTests(unittest.TestCase):
             with self.subTest(body=body), self.assertRaises(release.ReleaseProtocolError):
                 release.validate_skill(body, "0.1.0")
 
-    def test_skill_install_uses_detected_supported_root(self) -> None:
+    def test_skill_install_uses_shared_root_and_detected_historical_root(self) -> None:
         body = skill_bytes()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -135,7 +135,10 @@ class ReleaseProtocolTests(unittest.TestCase):
             destinations = release.install_skill_asset(body, "0.1.0", repo_root=root)
             self.assertEqual(
                 {path.relative_to(root).as_posix() for path in destinations},
-                {".codex/skills/envman-environment-variable-manager/SKILL.md"},
+                {
+                    ".agents/skills/envman-environment-variable-manager/SKILL.md",
+                    ".codex/skills/envman-environment-variable-manager/SKILL.md",
+                },
             )
             for destination in destinations:
                 self.assertEqual(destination.read_bytes(), body)
@@ -148,6 +151,97 @@ class ReleaseProtocolTests(unittest.TestCase):
             destinations = release.install_skill_asset(body, "0.1.0", repo_root=root)
             self.assertEqual([path.relative_to(root).as_posix() for path in destinations], [".agents/skills/envman-environment-variable-manager/SKILL.md"])
             self.assertEqual(destinations[0].read_bytes(), body)
+
+    def test_skill_install_targets_opencode_shared_and_existing_native_roots(self) -> None:
+        body = skill_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            (root / ".opencode" / "skills").mkdir(parents=True)
+            destinations = release.install_skill_asset(
+                body,
+                "0.1.0",
+                repo_root=root,
+                skill_scope="repository",
+                skill_targets=("opencode",),
+            )
+            self.assertEqual(
+                {path.relative_to(root).as_posix() for path in destinations},
+                {
+                    ".agents/skills/envman-environment-variable-manager/SKILL.md",
+                    ".opencode/skills/envman-environment-variable-manager/SKILL.md",
+                },
+            )
+
+    def test_skill_install_global_all_covers_every_localsetup_write_shape(self) -> None:
+        body = skill_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / ".codex" / "skills").mkdir(parents=True)
+            (home / ".opencode" / "skills").mkdir(parents=True)
+            destinations = release.install_skill_asset(
+                body,
+                "0.1.0",
+                skill_scope="global",
+                skill_targets=("all",),
+                home=home,
+            )
+            self.assertEqual(
+                {path.relative_to(home).as_posix() for path in destinations},
+                {
+                    ".agents/skills/envman-environment-variable-manager/SKILL.md",
+                    ".claude/skills/envman-environment-variable-manager/SKILL.md",
+                    ".cline/skills/envman-environment-variable-manager/SKILL.md",
+                    ".codex/skills/envman-environment-variable-manager/SKILL.md",
+                    ".gemini/config/skills/envman-environment-variable-manager/SKILL.md",
+                    ".hermes/skills/envman-environment-variable-manager/SKILL.md",
+                    ".opencode/skills/envman-environment-variable-manager/SKILL.md",
+                },
+            )
+
+    def test_auto_skill_scope_uses_global_home_outside_a_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            plan = release.skill_install_plan(repo_root=home, home=home)
+            self.assertEqual(plan.scope, "global")
+            self.assertEqual(
+                [path.relative_to(home).as_posix() for path in plan.roots],
+                [".agents/skills"],
+            )
+
+    def test_repository_skill_scope_requires_a_git_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(release.ReleaseProtocolError, "Git repository"):
+                release.skill_install_plan(skill_scope="repository", repo_root=root)
+
+    def test_localsetup_catalog_is_pinned_to_the_latest_stable_release(self) -> None:
+        self.assertEqual(release.LOCALSETUP_COMPATIBILITY_VERSION, "5.6.2")
+        self.assertEqual(
+            set(release.LOCALSETUP_SKILL_TARGETS),
+            {
+                "amp-cli",
+                "antigravity-app",
+                "claude-code",
+                "cline-cli",
+                "cline-vscode",
+                "codex",
+                "cursor",
+                "factory-droid",
+                "gemini-cli",
+                "github-copilot-cli",
+                "github-copilot-vscode",
+                "goose-cli",
+                "hermes-agent",
+                "kilo",
+                "kimi-cli",
+                "omp-cli",
+                "openclaw",
+                "opencode",
+                "pi-cli",
+                "qwen-code-cli",
+            },
+        )
 
     def test_skill_install_rejects_unmarked_and_broken_symlink_destinations(self) -> None:
         body = skill_bytes()
@@ -206,6 +300,51 @@ class ReleaseProtocolTests(unittest.TestCase):
             older, _ = manifest_bytes("0.0.9")
             with self.assertRaises(release.ReleaseProtocolError):
                 release.update(check_only=True, transport=lambda url, limit: older if url == "https://fixture.test/manifest" else transport(url, limit), state_root=state)
+
+    def test_update_can_refresh_the_latest_release_skill_when_tool_is_current(self) -> None:
+        encoded, bodies = manifest_bytes()
+        payload = json.loads(encoded)
+        skill = skill_bytes()
+        skill_asset = asset("envman-environment-variable-manager-skill.md", skill)
+        payload["assets"]["skill"] = skill_asset
+        manifest_url = "https://fixture.test/manifest-v2"
+        manifest = release.parse_manifest(json.dumps(payload).encode(), manifest_url=manifest_url)
+        bodies[skill_asset["url"]] = skill
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repo = root / "repo"
+            (repo / ".git").mkdir(parents=True)
+            state = root / "state"
+            receipt = release.InstallReceipt(
+                "0.1.0",
+                "github-release-wheel",
+                release.REPOSITORY,
+                manifest_url,
+                manifest.wheel,
+                manifest.constraints,
+                release.INSTALLER_VERSION,
+                "0.11.21",
+                "2026-07-19T00:00:00Z",
+            )
+            release.write_receipt(receipt, release.receipt_path(state))
+
+            def transport(url: str, _limit: int) -> bytes:
+                return json.dumps(payload).encode() if url == manifest_url else bodies[url]
+
+            result = release.update(
+                check_only=False,
+                install_skill=True,
+                skill_targets=("opencode",),
+                repo_root=repo,
+                home=root,
+                transport=transport,
+                state_root=state,
+            )
+            self.assertEqual(result["status"], "skill-installed")
+            self.assertEqual(result["localsetup_compatibility_version"], "5.6.2")
+            self.assertTrue(
+                (repo / ".agents" / "skills" / release.SKILL_DIRECTORY_NAME / release.SKILL_FILENAME).is_file()
+            )
 
     def test_install_uses_verified_assets_and_command_from_uv_tool_bin(self) -> None:
         encoded, bodies = manifest_bytes()

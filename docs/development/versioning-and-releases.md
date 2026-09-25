@@ -16,6 +16,19 @@ uv run --locked --no-sync python scripts/version.py check
 
 `sync` changes only the README version display. `check` parses the canonical release protocol and fails unless the README display matches `VERSION` and `INSTALLER_VERSION == VERSION`; all three values must be strict `MAJOR.MINOR.PATCH` versions. This release gate prevents stale installer receipt provenance from shipping.
 
+## LocalSetup compatibility pin
+
+Envman's agent target catalog is pinned to LocalSetup's latest stable release for repository policy, compliance, canonical write paths, supported client surfaces, and historical adapter transitions. This pin must be refreshed whenever LocalSetup publishes a stable release and must be current before Envman publishes:
+
+```bash
+uv run --locked --no-sync python scripts/sync_localsetup_skill_targets.py \
+  --github-latest --check --verify-latest
+```
+
+To refresh after a LocalSetup release, run the same script without `--check`, review the generated `_release_protocol.py` catalog, render `install.py`, and run the release tests. The source release, `clients.yaml` hash, and `platforms.yaml` hash are embedded beside the catalog. The generated block is not hand-edited.
+
+The inverse integration has a different rule: LocalSetup must resolve Envman from Envman's latest verified GitHub release manifest or installer and must not pin or vendor an Envman version.
+
 ## Patch-default planning
 
 Plan the next release from the latest matching `vMAJOR.MINOR.PATCH` tag:

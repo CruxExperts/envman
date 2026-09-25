@@ -86,15 +86,25 @@ The command never prints key material. `--yes` and `--force` do not approve key 
 <details>
 <summary>Install the optional agent skill</summary>
 
-Releases that include the Envman agent skill can install it into the current repository:
+Releases that include the Envman agent skill can install it globally or for a repository. Automatic placement uses the shared `.agents/skills` root and also refreshes existing LocalSetup-supported native roots:
 
 ```bash
 uv run --python 3.12 --script \
   https://github.com/CruxExperts/envman/releases/latest/download/install.py \
-  --install-skill
+  --install-skill --skill-scope global
+
+uv run --python 3.12 --script \
+  https://github.com/CruxExperts/envman/releases/latest/download/install.py \
+  --install-skill --skill-scope repository --skill-target opencode
 ```
 
-The installer verifies the skill asset, confines installation to supported repository-local skill roots, refuses symlink escapes, and preserves an unmarked existing skill. Use `--no-install-skill` to decline it explicitly.
+Use `--skill-target all` for every LocalSetup 5.6.2 write shape, or repeat `--skill-target AGENT` for selected agents. The installed updater can refresh the skill from Envman's latest verified GitHub release even when the tool version is already current:
+
+```bash
+envman update --install-skill --skill-scope global --skill-target codex
+```
+
+The installer refuses symlink escapes and preserves an unmarked existing skill. See the [installation guide](docs/getting-started/installation.md) for all 20 target names and recognized roots.
 
 </details>
 
