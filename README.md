@@ -12,7 +12,7 @@
 [![CodeQL](https://github.com/CruxExperts/envman/actions/workflows/codeql.yml/badge.svg)](https://github.com/CruxExperts/envman/actions/workflows/codeql.yml)
 [![Pages](https://github.com/CruxExperts/envman/actions/workflows/pages.yml/badge.svg)](https://cruxexperts.github.io/envman/)
 
-**Version:** 0.1.8
+**Version:** 0.1.9
 
 Envman manages durable, per-user environment variables on Linux. Use the terminal UI for deliberate local edits or the CLI for repeatable commands and JSON output. Values live in one managed location, so shell startup files stay readable.
 

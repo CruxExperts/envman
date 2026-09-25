@@ -38,7 +38,7 @@ WHEEL_LIMIT = 20 * 1024 * 1024
 SKILL_LIMIT = 1 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 30
 LATEST_MANIFEST_URL = "https://github.com/CruxExperts/envman/releases/latest/download/release-manifest-v2.json"
-INSTALLER_VERSION = "0.1.8"
+INSTALLER_VERSION = "0.1.9"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UV_VERSION = re.compile(r"\buv\s+(\d+)\.(\d+)\.(\d+)\b", re.IGNORECASE)
@@ -753,5 +753,4 @@ def installer_main(argv: Sequence[str] | None = None) -> int:
         return 2
     print(json.dumps({"schema": "envman.install-result", "schema_version": 1, "status": "installed", "version": receipt.installed_version}, sort_keys=True))
     return 0
-
 
